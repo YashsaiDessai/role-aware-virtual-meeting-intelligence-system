@@ -3,6 +3,8 @@
 
 Cyberpunk-themed interface for inputting transcripts and viewing
 role-aware analysis results from the MeetingAnalyzer engine.
+The 3D background responds to the role selectbox — pulling the
+active document plane to the front of the stack.
 """
 
 from __future__ import annotations
@@ -41,15 +43,6 @@ st.set_page_config(
 
 
 # ===================================================================== #
-#  THREE.JS BACKGROUND (subtle particle cloud)
-# ===================================================================== #
-BG_HTML = (Path(__file__).resolve().parent.parent / "background.html").read_text(
-    encoding="utf-8"
-)
-components.html(BG_HTML, height=0, scrolling=False)
-
-
-# ===================================================================== #
 #  CYBERPUNK CSS
 # ===================================================================== #
 st.markdown(
@@ -64,7 +57,6 @@ st.markdown(
       --mint:    #00ffb3;
       --bg:      #0a0a12;
       --card:    rgba(10, 10, 18, 0.75);
-      --glass:   rgba(0, 240, 255, 0.04);
       --border:  rgba(0, 240, 255, 0.15);
       --text:    #e0e6f0;
       --muted:   #6b7394;
@@ -80,8 +72,6 @@ st.markdown(
     header[data-testid="stHeader"] { background: transparent !important; }
     [data-testid="stAppViewBlockContainer"] { background: transparent !important; }
     #MainMenu, footer, [data-testid="stDecoration"] { display: none !important; }
-
-    /* Hide sidebar nav */
     [data-testid="stSidebarNav"] { display: none !important; }
     section[data-testid="stSidebar"] { display: none !important; }
 
@@ -90,7 +80,7 @@ st.markdown(
         max-width: 900px !important;
     }
 
-    /* ── Three.js iframe ───────────────────────────────────────────── */
+    /* Three.js iframe — behind everything */
     iframe {
         position: fixed !important;
         top: 0 !important; left: 0 !important;
@@ -98,34 +88,6 @@ st.markdown(
         z-index: -1 !important;
         pointer-events: none !important;
         border: none !important;
-    }
-
-    /* ── Page title ────────────────────────────────────────────────── */
-    .analyzer-header {
-        display: flex;
-        align-items: center;
-        gap: 1rem;
-        margin-bottom: 0.3rem;
-    }
-    .back-btn {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.4rem;
-        font-family: 'Orbitron', sans-serif;
-        font-size: 0.65rem;
-        letter-spacing: 2px;
-        text-transform: uppercase;
-        color: var(--muted);
-        text-decoration: none;
-        padding: 0.4rem 0.8rem;
-        border: 1px solid rgba(107,115,148,0.2);
-        border-radius: 6px;
-        transition: all 0.3s ease;
-        cursor: pointer;
-    }
-    .back-btn:hover {
-        color: var(--cyan);
-        border-color: var(--cyan);
     }
 
     h1 {
@@ -149,7 +111,6 @@ st.markdown(
         margin-bottom: 1.8rem;
     }
 
-    /* ── Glassmorphism card ─────────────────────────────────────────── */
     .glass-card {
         background: var(--card);
         backdrop-filter: blur(16px);
@@ -161,7 +122,6 @@ st.markdown(
         box-shadow: 0 0 30px rgba(0,240,255,0.06), inset 0 0 60px rgba(0,240,255,0.02);
     }
 
-    /* ── Labels ─────────────────────────────────────────────────────── */
     .stSelectbox label, .stTextArea label, label {
         font-family: 'Orbitron', sans-serif !important;
         font-size: 0.7rem !important;
@@ -170,7 +130,6 @@ st.markdown(
         color: var(--cyan) !important;
     }
 
-    /* ── Select box ────────────────────────────────────────────────── */
     [data-testid="stSelectbox"] > div > div,
     [data-testid="stSelectbox"] div[data-baseweb="select"] > div,
     [data-testid="stSelectbox"] [data-baseweb="select"],
@@ -192,14 +151,11 @@ st.markdown(
         background: rgba(0, 240, 255, 0.1) !important;
     }
 
-    /* ── Text area ─────────────────────────────────────────────────── */
-    .stTextArea textarea,
-    .stTextArea div,
+    .stTextArea textarea, .stTextArea div,
     [data-testid="stTextArea"] textarea,
     [data-testid="stTextArea"] div[data-baseweb="textarea"],
     [data-testid="stTextArea"] div[data-baseweb="base-input"],
-    [data-baseweb="textarea"],
-    [data-baseweb="base-input"],
+    [data-baseweb="textarea"], [data-baseweb="base-input"],
     textarea {
         background: rgba(10, 10, 18, 0.9) !important;
         background-color: rgba(10, 10, 18, 0.9) !important;
@@ -212,8 +168,7 @@ st.markdown(
         line-height: 1.6 !important;
     }
     .stTextArea textarea::placeholder, textarea::placeholder {
-        color: #4a5068 !important;
-        opacity: 1 !important;
+        color: #4a5068 !important; opacity: 1 !important;
     }
     .stTextArea textarea:focus, textarea:focus {
         border-color: var(--cyan) !important;
@@ -227,20 +182,15 @@ st.markdown(
         border: 1px solid var(--border) !important;
     }
 
-    /* ── Primary button ────────────────────────────────────────────── */
     .stButton > button {
         width: 100%;
         font-family: 'Orbitron', sans-serif !important;
-        font-weight: 700;
-        font-size: 0.85rem;
-        letter-spacing: 3px;
-        text-transform: uppercase;
+        font-weight: 700; font-size: 0.85rem;
+        letter-spacing: 3px; text-transform: uppercase;
         color: #0a0a12 !important;
         background: linear-gradient(135deg, var(--cyan), var(--mint)) !important;
-        border: none !important;
-        border-radius: 8px !important;
+        border: none !important; border-radius: 8px !important;
         padding: 0.75rem 2rem !important;
-        cursor: pointer;
         transition: all 0.3s ease;
         box-shadow: 0 0 20px rgba(0,240,255,0.25);
     }
@@ -249,59 +199,45 @@ st.markdown(
         transform: translateY(-1px);
     }
 
-    /* ── Info box ───────────────────────────────────────────────────── */
     [data-testid="stAlert"] {
         background: rgba(0, 240, 255, 0.06) !important;
         border: 1px solid rgba(0, 240, 255, 0.2) !important;
         border-left: 4px solid var(--cyan) !important;
         border-radius: 8px !important;
-        color: var(--text) !important;
-        font-size: 0.88rem;
+        color: var(--text) !important; font-size: 0.88rem;
     }
 
-    /* ── Section headers ───────────────────────────────────────────── */
     h3 {
         font-family: 'Orbitron', sans-serif !important;
-        font-size: 0.9rem !important;
-        letter-spacing: 2px !important;
+        font-size: 0.9rem !important; letter-spacing: 2px !important;
         color: var(--cyan) !important;
         border-bottom: 1px solid var(--border);
-        padding-bottom: 0.5rem;
-        margin-top: 1.5rem !important;
+        padding-bottom: 0.5rem; margin-top: 1.5rem !important;
     }
 
-    /* ── Tables ─────────────────────────────────────────────────────── */
     .stTable table, .stDataFrame table { width: 100%; border-collapse: separate; border-spacing: 0; }
     .stTable thead th, .stDataFrame thead th {
         background: rgba(0, 240, 255, 0.08) !important;
         color: var(--cyan) !important;
         font-family: 'Orbitron', sans-serif !important;
-        font-size: 0.65rem !important;
-        letter-spacing: 2px !important;
+        font-size: 0.65rem !important; letter-spacing: 2px !important;
         text-transform: uppercase !important;
-        border-bottom: 1px solid var(--border) !important;
-        padding: 0.7rem 1rem !important;
+        border-bottom: 1px solid var(--border) !important; padding: 0.7rem 1rem !important;
     }
     .stTable tbody td, .stDataFrame tbody td {
         background: rgba(10, 10, 18, 0.6) !important;
-        color: var(--text) !important;
-        font-size: 0.82rem !important;
-        border-bottom: 1px solid rgba(0,240,255,0.06) !important;
-        padding: 0.6rem 1rem !important;
+        color: var(--text) !important; font-size: 0.82rem !important;
+        border-bottom: 1px solid rgba(0,240,255,0.06) !important; padding: 0.6rem 1rem !important;
     }
     .stTable tbody tr:hover td { background: rgba(0, 240, 255, 0.05) !important; }
 
-    /* ── Decisions ──────────────────────────────────────────────────── */
     .decision-item {
-        padding: 0.6rem 1rem;
-        margin-bottom: 0.4rem;
+        padding: 0.6rem 1rem; margin-bottom: 0.4rem;
         background: rgba(139, 0, 255, 0.06);
         border-left: 3px solid var(--violet);
-        border-radius: 0 6px 6px 0;
-        font-size: 0.85rem;
+        border-radius: 0 6px 6px 0; font-size: 0.85rem;
     }
 
-    /* ── Scrollbar ──────────────────────────────────────────────────── */
     ::-webkit-scrollbar { width: 6px; }
     ::-webkit-scrollbar-track { background: var(--bg); }
     ::-webkit-scrollbar-thumb { background: rgba(0,240,255,0.2); border-radius: 3px; }
@@ -327,7 +263,7 @@ st.markdown(
 
 
 # ===================================================================== #
-#  INPUT SECTION
+#  INPUT SECTION  (role selectbox FIRST — it drives the 3D background)
 # ===================================================================== #
 st.markdown('<div class="glass-card">', unsafe_allow_html=True)
 
@@ -351,6 +287,17 @@ with col2:
         """,
         unsafe_allow_html=True,
     )
+
+
+# ===================================================================== #
+#  THREE.JS ROLE-AWARE 3D BACKGROUND (templated with active role)
+# ===================================================================== #
+BG_TEMPLATE = (Path(__file__).resolve().parent.parent / "background.html").read_text(
+    encoding="utf-8"
+)
+BG_HTML = BG_TEMPLATE.replace("__ACTIVE_ROLE__", role)
+components.html(BG_HTML, height=0, scrolling=False)
+
 
 transcript = st.text_area(
     "Meeting Transcript",

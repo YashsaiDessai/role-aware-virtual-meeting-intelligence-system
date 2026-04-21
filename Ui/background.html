@@ -6,116 +6,361 @@
   * { margin: 0; padding: 0; }
   body { overflow: hidden; background: transparent; }
   canvas {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh;
-    z-index: -1;
-    pointer-events: none;
+    display: block;
+    width: 100%;
+    height: 100%;
+    animation: fadeIn 0.6s ease-out;
   }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 </style>
 </head>
 <body>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 (() => {
-  // ── Renderer ──────────────────────────────────────────────────────
+  /* ─── CONFIG ────────────────────────────────────────────────────── */
+  const ACTIVE_ROLE = "__ACTIVE_ROLE__";   // templated by Streamlit
+
+  const ROLE_CFG = {
+    Engineering: { color: 0x00f0ff, label: "ENGINEERING",  stackIdx: 0 },
+    Product:     { color: 0xff0099, label: "PRODUCT",      stackIdx: 1 },
+    Management:  { color: 0xffdd00, label: "MANAGEMENT",   stackIdx: 2 },
+  };
+
+  /* ─── RENDERER ──────────────────────────────────────────────────── */
   const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.setSize(window.innerWidth, window.innerHeight);
-  renderer.setClearColor(0x000000, 0);          // fully transparent
+  renderer.setClearColor(0x000000, 0);
+  renderer.shadowMap.enabled = false;
   document.body.appendChild(renderer.domElement);
 
-  // ── Scene + Camera ────────────────────────────────────────────────
+  /* ─── SCENE + CAMERA ────────────────────────────────────────────── */
   const scene  = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(
-    60, window.innerWidth / window.innerHeight, 0.1, 1000
+    50, window.innerWidth / window.innerHeight, 0.1, 100
   );
-  camera.position.z = 3.2;
+  camera.position.set(0, 0.3, 5.5);
+  camera.lookAt(0, 0, 0);
 
-  // ── Neural Particle Cloud ─────────────────────────────────────────
-  const PARTICLE_COUNT = 1800;
-  const positions = new Float32Array(PARTICLE_COUNT * 3);
-  const colours   = new Float32Array(PARTICLE_COUNT * 3);
+  /* ─── LIGHTS (needed for MeshPhongMaterial) ─────────────────────── */
+  const ambientLight = new THREE.AmbientLight(0xffffff, 0.35);
+  scene.add(ambientLight);
 
-  // Cyan / magenta / violet palette
-  const palette = [
-    [0.0, 0.95, 1.0],   // electric cyan
-    [0.55, 0.0, 1.0],   // deep violet
-    [1.0, 0.0, 0.6],    // hot magenta
-    [0.0, 1.0, 0.7],    // mint neon
-  ];
+  const keyLight = new THREE.DirectionalLight(0xffffff, 0.8);
+  keyLight.position.set(3, 4, 5);
+  scene.add(keyLight);
 
-  for (let i = 0; i < PARTICLE_COUNT; i++) {
-    // Distribute on a sphere surface with some depth noise
-    const theta = Math.random() * Math.PI * 2;
-    const phi   = Math.acos(2 * Math.random() - 1);
-    const r     = 1.4 + (Math.random() - 0.5) * 0.6;
+  const fillLight = new THREE.DirectionalLight(0x8888ff, 0.3);
+  fillLight.position.set(-3, 1, 3);
+  scene.add(fillLight);
 
-    positions[i * 3]     = r * Math.sin(phi) * Math.cos(theta);
-    positions[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
-    positions[i * 3 + 2] = r * Math.cos(phi);
+  /* ─── HELPERS: Label Texture ────────────────────────────────────── */
+  function createLabelTexture(text, color) {
+    const canvas = document.createElement("canvas");
+    canvas.width  = 512;
+    canvas.height = 64;
+    const ctx = canvas.getContext("2d");
 
-    const c = palette[Math.floor(Math.random() * palette.length)];
-    colours[i * 3]     = c[0];
-    colours[i * 3 + 1] = c[1];
-    colours[i * 3 + 2] = c[2];
+    ctx.clearRect(0, 0, 512, 64);
+    ctx.font = "bold 30px 'Courier New', monospace";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = color;
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 12;
+    ctx.fillText(text, 256, 32);
+
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.needsUpdate = true;
+    return tex;
   }
 
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-  geo.setAttribute('color',    new THREE.BufferAttribute(colours, 3));
+  /* ─── BUILD DOCUMENT PLANES ─────────────────────────────────────── */
+  const DOC_W = 2.6;
+  const DOC_H = 3.4;
 
-  const mat = new THREE.PointsMaterial({
-    size: 0.018,
+  // Stack layout: slight Y and Z offsets to look stacked
+  const stackPositions = [
+    { y:  0.6, z: 0.3,  rx: -0.08 },  // Engineering (top)
+    { y:  0.0, z: 0.0,  rx:  0.0  },  // Product     (middle)
+    { y: -0.6, z: -0.3, rx:  0.08 },  // Management  (bottom)
+  ];
+
+  // Focus position: pulled out front-center
+  const FOCUS_POS  = { x: 0, y: 0.1, z: 1.8 };
+  const FOCUS_ROT  = { x: 0, y: 0, z: 0 };
+  const BACK_OFFSET = 0.6;  // extra Z push for non-focused
+
+  const documents = {};   // { role: { group, plane, edges, label, cfg, anim } }
+
+  Object.entries(ROLE_CFG).forEach(([role, cfg]) => {
+    const group = new THREE.Group();
+    const sp = stackPositions[cfg.stackIdx];
+
+    // ──── Main plane ─────────────────────────────────────────────
+    const planeGeo = new THREE.PlaneGeometry(DOC_W, DOC_H);
+    const planeMat = new THREE.MeshPhongMaterial({
+      color: cfg.color,
+      transparent: true,
+      opacity: 0.4,
+      side: THREE.DoubleSide,
+      shininess: 60,
+      emissive: cfg.color,
+      emissiveIntensity: 0.05,
+    });
+    const planeMesh = new THREE.Mesh(planeGeo, planeMat);
+    group.add(planeMesh);
+
+    // ──── Wireframe edges ────────────────────────────────────────
+    const edgesGeo = new THREE.EdgesGeometry(planeGeo);
+    const edgesMat = new THREE.LineBasicMaterial({
+      color: cfg.color,
+      transparent: true,
+      opacity: 0.7,
+    });
+    const edges = new THREE.LineSegments(edgesGeo, edgesMat);
+    group.add(edges);
+
+    // ──── Inner grid lines (technical look) ──────────────────────
+    const gridGroup = new THREE.Group();
+    const gridMat = new THREE.LineBasicMaterial({
+      color: cfg.color, transparent: true, opacity: 0.1,
+    });
+
+    // Horizontal lines
+    for (let i = 1; i <= 5; i++) {
+      const y = -DOC_H / 2 + (DOC_H / 6) * i;
+      const pts = [
+        new THREE.Vector3(-DOC_W / 2 + 0.15, y, 0.001),
+        new THREE.Vector3( DOC_W / 2 - 0.15, y, 0.001),
+      ];
+      const lineGeo = new THREE.BufferGeometry().setFromPoints(pts);
+      gridGroup.add(new THREE.Line(lineGeo, gridMat));
+    }
+    group.add(gridGroup);
+
+    // ──── Role label ─────────────────────────────────────────────
+    const hexColor = "#" + cfg.color.toString(16).padStart(6, "0");
+    const labelTex = createLabelTexture(cfg.label, hexColor);
+    const labelGeo = new THREE.PlaneGeometry(2.0, 0.3);
+    const labelMat = new THREE.MeshBasicMaterial({
+      map: labelTex,
+      transparent: true,
+      opacity: 0.9,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+    });
+    const labelMesh = new THREE.Mesh(labelGeo, labelMat);
+    labelMesh.position.set(0, DOC_H / 2 - 0.45, 0.01);
+    group.add(labelMesh);
+
+    // ──── Initial stack position ─────────────────────────────────
+    group.position.set(0, sp.y, sp.z);
+    group.rotation.x = sp.rx;
+
+    scene.add(group);
+
+    documents[role] = {
+      group,
+      plane: planeMesh,
+      planeMat,
+      edges,
+      edgesMat,
+      label: labelMesh,
+      labelMat,
+      gridGroup,
+      gridMat,
+      cfg,
+      stackPos: sp,
+      // Animation targets (lerped toward in animation loop)
+      target: {
+        x: 0,
+        y: sp.y,
+        z: sp.z,
+        rx: sp.rx,
+        ry: 0,
+        opacity: 0.4,
+        emissive: 0.05,
+        edgeOpacity: 0.7,
+        scale: 1.0,
+      },
+    };
+  });
+
+  /* ─── AMBIENT PARTICLES ─────────────────────────────────────────── */
+  const DUST_COUNT = 300;
+  const dustPositions = new Float32Array(DUST_COUNT * 3);
+  const dustColors    = new Float32Array(DUST_COUNT * 3);
+  const palette = [
+    new THREE.Color(0x00f0ff),
+    new THREE.Color(0xff0099),
+    new THREE.Color(0xffdd00),
+  ];
+
+  for (let i = 0; i < DUST_COUNT; i++) {
+    dustPositions[i * 3]     = (Math.random() - 0.5) * 14;
+    dustPositions[i * 3 + 1] = (Math.random() - 0.5) * 10;
+    dustPositions[i * 3 + 2] = (Math.random() - 0.5) * 10;
+    const c = palette[Math.floor(Math.random() * 3)];
+    dustColors[i * 3]     = c.r;
+    dustColors[i * 3 + 1] = c.g;
+    dustColors[i * 3 + 2] = c.b;
+  }
+
+  const dustGeo = new THREE.BufferGeometry();
+  dustGeo.setAttribute("position", new THREE.BufferAttribute(dustPositions, 3));
+  dustGeo.setAttribute("color",    new THREE.BufferAttribute(dustColors, 3));
+  const dustMat = new THREE.PointsMaterial({
+    size: 0.02,
     vertexColors: true,
     transparent: true,
-    opacity: 0.85,
+    opacity: 0.35,
     sizeAttenuation: true,
     depthWrite: false,
   });
+  const dust = new THREE.Points(dustGeo, dustMat);
+  scene.add(dust);
 
-  const cloud = new THREE.Points(geo, mat);
-  scene.add(cloud);
+  /* ─── focusRole() — callable from window ────────────────────────── */
+  let activeRole = null;
 
-  // ── Wireframe Icosphere (subtle accent) ───────────────────────────
-  const icoGeo = new THREE.IcosahedronGeometry(1.15, 2);
-  const icoMat = new THREE.MeshBasicMaterial({
-    color: 0x00f0ff,
-    wireframe: true,
-    transparent: true,
-    opacity: 0.08,
-  });
-  const icoMesh = new THREE.Mesh(icoGeo, icoMat);
-  scene.add(icoMesh);
+  window.focusRole = function (role) {
+    if (role && !ROLE_CFG[role]) return;
+    activeRole = role || null;
 
-  // ── Animation Loop ────────────────────────────────────────────────
+    Object.entries(documents).forEach(([r, doc]) => {
+      const sp = doc.stackPos;
+
+      if (!activeRole) {
+        // ── IDLE: return to stack
+        doc.target.x  = 0;
+        doc.target.y  = sp.y;
+        doc.target.z  = sp.z;
+        doc.target.rx = sp.rx;
+        doc.target.ry = 0;
+        doc.target.opacity = 0.4;
+        doc.target.emissive = 0.05;
+        doc.target.edgeOpacity = 0.7;
+        doc.target.scale = 1.0;
+      } else if (r === activeRole) {
+        // ── FOCUSED: pull to front
+        doc.target.x  = FOCUS_POS.x;
+        doc.target.y  = FOCUS_POS.y;
+        doc.target.z  = FOCUS_POS.z;
+        doc.target.rx = FOCUS_ROT.x;
+        doc.target.ry = FOCUS_ROT.y;
+        doc.target.opacity = 0.85;
+        doc.target.emissive = 0.25;
+        doc.target.edgeOpacity = 1.0;
+        doc.target.scale = 1.08;
+      } else {
+        // ── BACKGROUND: fade back
+        const pushDir = (doc.cfg.stackIdx < ROLE_CFG[activeRole].stackIdx) ? 1 : -1;
+        doc.target.x  = pushDir * 0.8;
+        doc.target.y  = sp.y + pushDir * 0.3;
+        doc.target.z  = sp.z - BACK_OFFSET;
+        doc.target.rx = sp.rx;
+        doc.target.ry = pushDir * 0.15;
+        doc.target.opacity = 0.12;
+        doc.target.emissive = 0.01;
+        doc.target.edgeOpacity = 0.2;
+        doc.target.scale = 0.92;
+      }
+    });
+  };
+
+  /* ─── INITIALIZE WITH ACTIVE ROLE ───────────────────────────────── */
+  if (ACTIVE_ROLE && ROLE_CFG[ACTIVE_ROLE]) {
+    // Set initial state instantly (no lerp for first frame)
+    window.focusRole(ACTIVE_ROLE);
+    Object.entries(documents).forEach(([r, doc]) => {
+      const t = doc.target;
+      doc.group.position.set(t.x, t.y, t.z);
+      doc.group.rotation.x = t.rx;
+      doc.group.rotation.y = t.ry;
+      doc.group.scale.set(t.scale, t.scale, t.scale);
+      doc.planeMat.opacity = t.opacity;
+      doc.planeMat.emissiveIntensity = t.emissive;
+      doc.edgesMat.opacity = t.edgeOpacity;
+    });
+  }
+
+  /* ─── ANIMATION LOOP ────────────────────────────────────────────── */
   const clock = new THREE.Clock();
+  const LERP_SPEED = 0.04;
+
+  function lerp(a, b, t) { return a + (b - a) * t; }
 
   function animate() {
     requestAnimationFrame(animate);
     const t = clock.getElapsedTime();
 
-    cloud.rotation.y   = t * 0.08;
-    cloud.rotation.x   = Math.sin(t * 0.04) * 0.15;
+    // ── Dust drift ──────────────────────────────────────────────
+    dust.rotation.y = t * 0.01;
 
-    icoMesh.rotation.y = -t * 0.06;
-    icoMesh.rotation.x = Math.cos(t * 0.03) * 0.12;
+    // ── Per-document animation ──────────────────────────────────
+    Object.entries(documents).forEach(([role, doc]) => {
+      const tgt = doc.target;
+      const grp = doc.group;
 
-    // gentle breathing scale
-    const scale = 1 + Math.sin(t * 0.5) * 0.03;
-    cloud.scale.set(scale, scale, scale);
+      // Breathing offset (idle float) — gentle sine wave
+      const breatheY = Math.sin(t * 0.8 + doc.cfg.stackIdx * 1.2) * 0.06;
+      const breatheTargetY = tgt.y + breatheY;
+
+      // Lerp position
+      grp.position.x = lerp(grp.position.x, tgt.x, LERP_SPEED);
+      grp.position.y = lerp(grp.position.y, breatheTargetY, LERP_SPEED);
+      grp.position.z = lerp(grp.position.z, tgt.z, LERP_SPEED);
+
+      // Lerp rotation
+      grp.rotation.x = lerp(grp.rotation.x, tgt.rx, LERP_SPEED);
+      grp.rotation.y = lerp(grp.rotation.y, tgt.ry, LERP_SPEED);
+
+      // Lerp scale
+      const currentScale = grp.scale.x;
+      let targetScale = tgt.scale;
+      // Pulse for focused role
+      if (role === activeRole) {
+        targetScale += Math.sin(t * 2.5) * 0.015;
+      }
+      const newScale = lerp(currentScale, targetScale, LERP_SPEED);
+      grp.scale.set(newScale, newScale, newScale);
+
+      // Lerp material properties
+      doc.planeMat.opacity = lerp(doc.planeMat.opacity, tgt.opacity, LERP_SPEED);
+      doc.planeMat.emissiveIntensity = lerp(
+        doc.planeMat.emissiveIntensity, tgt.emissive, LERP_SPEED
+      );
+      doc.edgesMat.opacity = lerp(doc.edgesMat.opacity, tgt.edgeOpacity, LERP_SPEED);
+
+      // Label fades with edges
+      doc.labelMat.opacity = lerp(doc.labelMat.opacity, tgt.edgeOpacity, LERP_SPEED);
+
+      // Grid lines fade
+      doc.gridMat.opacity = lerp(
+        doc.gridMat.opacity,
+        role === activeRole ? 0.2 : 0.06,
+        LERP_SPEED
+      );
+    });
 
     renderer.render(scene, camera);
   }
   animate();
 
-  // ── Resize handling ───────────────────────────────────────────────
-  window.addEventListener('resize', () => {
+  /* ─── RESIZE ────────────────────────────────────────────────────── */
+  window.addEventListener("resize", () => {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
+  });
+
+  /* ─── MESSAGE LISTENER (for postMessage from Streamlit) ─────────── */
+  window.addEventListener("message", (e) => {
+    if (e.data && e.data.type === "focusRole") {
+      window.focusRole(e.data.role);
+    }
   });
 })();
 </script>
