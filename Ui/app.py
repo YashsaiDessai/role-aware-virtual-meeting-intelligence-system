@@ -25,7 +25,7 @@ st.set_page_config(
 #  THREE.JS HERO SCENE
 # ===================================================================== #
 SCENE_HTML = (Path(__file__).parent / "home_scene.html").read_text(encoding="utf-8")
-components.html(SCENE_HTML, height=0, scrolling=False)
+components.html(SCENE_HTML, height=600, scrolling=False)
 
 # ===================================================================== #
 #  CSS — CYBERPUNK LANDING PAGE
@@ -67,15 +67,32 @@ st.markdown(
     }
 
     /* ── Three.js iframe ───────────────────────────────────────────── */
-    iframe {
+    iframe[title="streamlit_components_v1.html"] {
         position: fixed !important;
         top: 0 !important;
         left: 0 !important;
         width: 100vw !important;
         height: 100vh !important;
-        z-index: -1 !important;
+        z-index: 0 !important;
         pointer-events: none !important;
         border: none !important;
+    }
+
+    /* Prevent Streamlit's parent wrapper from clipping the iframe */
+    [data-testid="stHtml"],
+    [data-testid="element-container"]:has(iframe) {
+        position: fixed !important;
+        top: 0 !important; left: 0 !important;
+        width: 100vw !important; height: 100vh !important;
+        z-index: 0 !important;
+        overflow: visible !important;
+        pointer-events: none !important;
+    }
+
+    /* All content sits above the 3D scene */
+    .block-container, [data-testid="stVerticalBlock"] {
+        position: relative !important;
+        z-index: 1 !important;
     }
 
     /* ── Hero section ──────────────────────────────────────────────── */
