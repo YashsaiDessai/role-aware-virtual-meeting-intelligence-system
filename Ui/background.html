@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<style>
+  * { margin: 0; padding: 0; }
+  body { overflow: hidden; background: transparent; }
+  canvas {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: -1;
+    pointer-events: none;
+  }
+</style>
+</head>
+<body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(() => {
+  // ── Renderer ──────────────────────────────────────────────────────
+  const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setClearColor(0x000000, 0);          // fully transparent
+  document.body.appendChild(renderer.domElement);
+
+  // ── Scene + Camera ────────────────────────────────────────────────
+  const scene  = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(
+    60, window.innerWidth / window.innerHeight, 0.1, 1000
+  );
+  camera.position.z = 3.2;
+
+  // ── Neural Particle Cloud ─────────────────────────────────────────
+  const PARTICLE_COUNT = 1800;
+  const positions = new Float32Array(PARTICLE_COUNT * 3);
+  const colours   = new Float32Array(PARTICLE_COUNT * 3);
+
+  // Cyan / magenta / violet palette
+  const palette = [
+    [0.0, 0.95, 1.0],   // electric cyan
+    [0.55, 0.0, 1.0],   // deep violet
+    [1.0, 0.0, 0.6],    // hot magenta
+    [0.0, 1.0, 0.7],    // mint neon
+  ];
+
+  for (let i = 0; i < PARTICLE_COUNT; i++) {
+    // Distribute on a sphere surface with some depth noise
+    const theta = Math.random() * Math.PI * 2;
+    const phi   = Math.acos(2 * Math.random() - 1);
+    const r     = 1.4 + (Math.random() - 0.5) * 0.6;
+
+    positions[i * 3]     = r * Math.sin(phi) * Math.cos(theta);
+    positions[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
+    positions[i * 3 + 2] = r * Math.cos(phi);
+
+    const c = palette[Math.floor(Math.random() * palette.length)];
+    colours[i * 3]     = c[0];
+    colours[i * 3 + 1] = c[1];
+    colours[i * 3 + 2] = c[2];
+  }
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geo.setAttribute('color',    new THREE.BufferAttribute(colours, 3));
+
+  const mat = new THREE.PointsMaterial({
+    size: 0.018,
+    vertexColors: true,
+    transparent: true,
+    opacity: 0.85,
+    sizeAttenuation: true,
+    depthWrite: false,
+  });
+
+  const cloud = new THREE.Points(geo, mat);
+  scene.add(cloud);
+
+  // ── Wireframe Icosphere (subtle accent) ───────────────────────────
+  const icoGeo = new THREE.IcosahedronGeometry(1.15, 2);
+  const icoMat = new THREE.MeshBasicMaterial({
+    color: 0x00f0ff,
+    wireframe: true,
+    transparent: true,
+    opacity: 0.08,
+  });
+  const icoMesh = new THREE.Mesh(icoGeo, icoMat);
+  scene.add(icoMesh);
+
+  // ── Animation Loop ────────────────────────────────────────────────
+  const clock = new THREE.Clock();
+
+  function animate() {
+    requestAnimationFrame(animate);
+    const t = clock.getElapsedTime();
+
+    cloud.rotation.y   = t * 0.08;
+    cloud.rotation.x   = Math.sin(t * 0.04) * 0.15;
+
+    icoMesh.rotation.y = -t * 0.06;
+    icoMesh.rotation.x = Math.cos(t * 0.03) * 0.12;
+
+    // gentle breathing scale
+    const scale = 1 + Math.sin(t * 0.5) * 0.03;
+    cloud.scale.set(scale, scale, scale);
+
+    renderer.render(scene, camera);
+  }
+  animate();
+
+  // ── Resize handling ───────────────────────────────────────────────
+  window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  });
+})();
+</script>
+</body>
+</html>
