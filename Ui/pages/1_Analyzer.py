@@ -3,13 +3,18 @@
 
 Cyberpunk-themed interface for inputting transcripts and viewing
 role-aware analysis results from the MeetingAnalyzer engine.
-The 3D background responds to the role selectbox — pulling the
-active document plane to the front of the stack.
+
+Supports two input modes:
+  1. 📎 Upload a video/audio file → local Whisper transcription
+  2. 📝 Paste raw transcript text directly
+
+The 3D document-stack background responds to the role selectbox.
 """
 
 from __future__ import annotations
 
 import sys
+import tempfile
 from pathlib import Path
 
 import pandas as pd
@@ -21,14 +26,21 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+from core.audio import AudioProcessor, ALL_EXTENSIONS  # noqa: E402
 from core.engine import MeetingAnalyzer  # noqa: E402
 
 
-# ── Cached analyzer (survives reruns) ────────────────────────────────
+# ── Cached resources (survive reruns) ────────────────────────────────
 @st.cache_resource
 def get_analyzer() -> MeetingAnalyzer:
     """Instantiate once — keeps model warm between interactions."""
     return MeetingAnalyzer()
+
+
+@st.cache_resource
+def get_audio_processor() -> AudioProcessor:
+    """Instantiate once — keeps Whisper model warm."""
+    return AudioProcessor()
 
 
 # ===================================================================== #
@@ -43,23 +55,25 @@ st.set_page_config(
 
 
 # ===================================================================== #
-#  CYBERPUNK CSS + THREE.JS INJECTED DIRECTLY INTO THE PAGE DOM
+#  SESSION STATE INIT
 # ===================================================================== #
+if "analyzer_role" not in st.session_state:
+    st.session_state.analyzer_role = "Engineering"
+if "transcribed_text" not in st.session_state:
+    st.session_state.transcribed_text = ""
 
-# Read the Three.js scene template
+
+# ===================================================================== #
+#  THREE.JS SCENE TEMPLATE
+# ===================================================================== #
 BG_TEMPLATE = (Path(__file__).resolve().parent.parent / "background.html").read_text(
     encoding="utf-8"
 )
 
-# We need the role BEFORE injecting the 3D scene, so we use session state
-# to remember the role across reruns while still injecting CSS first.
-if "analyzer_role" not in st.session_state:
-    st.session_state.analyzer_role = "Engineering"
 
-# Extract just the <script> content from background.html for direct injection
-# We'll load Three.js via CDN and run the scene script directly in the page
-THREEJS_SCENE_SCRIPT = BG_TEMPLATE.replace("__ACTIVE_ROLE__", st.session_state.analyzer_role)
-
+# ===================================================================== #
+#  CYBERPUNK CSS
+# ===================================================================== #
 st.markdown(
     f"""
     <style>
@@ -105,7 +119,6 @@ st.markdown(
         border: none !important;
     }}
 
-    /* Ensure the iframe's PARENT container doesn't clip it */
     [data-testid="stHtml"],
     [data-testid="element-container"]:has(iframe) {{
         position: fixed !important;
@@ -116,7 +129,6 @@ st.markdown(
         pointer-events: none !important;
     }}
 
-    /* Everything else sits above the 3D scene */
     .block-container, [data-testid="stVerticalBlock"] {{
         position: relative !important;
         z-index: 1 !important;
@@ -270,6 +282,54 @@ st.markdown(
         border-radius: 0 6px 6px 0; font-size: 0.85rem;
     }}
 
+    /* ── File uploader styling ─────────────────────────────────────── */
+    [data-testid="stFileUploader"] {{
+        border: 1px dashed var(--border) !important;
+        border-radius: 8px !important;
+        padding: 1rem !important;
+    }}
+    [data-testid="stFileUploader"] section {{
+        background: transparent !important;
+    }}
+    [data-testid="stFileUploader"] button {{
+        color: var(--cyan) !important;
+        border-color: var(--border) !important;
+        background: rgba(0, 240, 255, 0.05) !important;
+    }}
+
+    /* ── Tabs styling ─────────────────────────────────────────────── */
+    .stTabs [data-baseweb="tab-list"] {{
+        gap: 0.5rem;
+    }}
+    .stTabs [data-baseweb="tab"] {{
+        font-family: 'Orbitron', sans-serif !important;
+        font-size: 0.7rem !important;
+        letter-spacing: 2px !important;
+        color: var(--muted) !important;
+        background: transparent !important;
+        border: 1px solid var(--border) !important;
+        border-radius: 6px !important;
+        padding: 0.5rem 1.2rem !important;
+    }}
+    .stTabs [aria-selected="true"] {{
+        color: var(--cyan) !important;
+        border-color: var(--cyan) !important;
+        background: rgba(0, 240, 255, 0.06) !important;
+    }}
+
+    /* ── Status/Expander ──────────────────────────────────────────── */
+    [data-testid="stExpander"] {{
+        border: 1px solid var(--border) !important;
+        border-radius: 8px !important;
+        background: rgba(10, 10, 18, 0.5) !important;
+    }}
+    [data-testid="stExpander"] summary {{
+        color: var(--cyan) !important;
+        font-family: 'Orbitron', sans-serif !important;
+        font-size: 0.72rem !important;
+        letter-spacing: 1px !important;
+    }}
+
     ::-webkit-scrollbar {{ width: 6px; }}
     ::-webkit-scrollbar-track {{ background: var(--bg); }}
     ::-webkit-scrollbar-thumb {{ background: rgba(0,240,255,0.2); border-radius: 3px; }}
@@ -289,13 +349,13 @@ with bcol1:
 
 st.title("⚡ Analyzer")
 st.markdown(
-    '<p class="page-sub">Paste transcript · Select role · Extract intelligence</p>',
+    '<p class="page-sub">Upload media · Select role · Extract intelligence</p>',
     unsafe_allow_html=True,
 )
 
 
 # ===================================================================== #
-#  INPUT SECTION
+#  ROLE SELECTOR + 3D BACKGROUND
 # ===================================================================== #
 st.markdown('<div class="glass-card">', unsafe_allow_html=True)
 
@@ -310,7 +370,6 @@ with col1:
         ),
         key="role_select",
     )
-    # Update session state so the 3D scene uses the new role on next rerun
     if role != st.session_state.analyzer_role:
         st.session_state.analyzer_role = role
         st.rerun()
@@ -327,21 +386,108 @@ with col2:
         unsafe_allow_html=True,
     )
 
-
-# ===================================================================== #
-#  THREE.JS ROLE-AWARE BACKGROUND (rendered via components.html)
-# ===================================================================== #
+# Inject 3D scene behind everything
 BG_HTML = BG_TEMPLATE.replace("__ACTIVE_ROLE__", st.session_state.analyzer_role)
 components.html(BG_HTML, height=600, scrolling=False)
 
 
-transcript = st.text_area(
-    "Meeting Transcript",
-    height=220,
-    placeholder="Paste your raw meeting transcript here ...",
-)
+# ===================================================================== #
+#  INPUT: TABS — Upload Media  |  Paste Transcript
+# ===================================================================== #
+tab_upload, tab_paste = st.tabs(["📎  UPLOAD MEDIA", "📝  PASTE TRANSCRIPT"])
 
-process = st.button("⚡  ANALYZE TRANSCRIPT", use_container_width=True)
+# ── Tab 1: File Upload ───────────────────────────────────────────────
+with tab_upload:
+    uploaded_file = st.file_uploader(
+        "Upload a meeting recording",
+        type=[ext.lstrip(".") for ext in ALL_EXTENSIONS],
+        help="Video (.mp4, .mov, .webm, .mkv, .avi) or Audio (.wav, .mp3, .m4a, .ogg, .flac)",
+    )
+
+    if uploaded_file is not None:
+        # Show file info
+        file_size_mb = uploaded_file.size / (1024 * 1024)
+        st.markdown(
+            f"""<div style="font-size:0.78rem; color: var(--muted); margin: 0.4rem 0 0.8rem;">
+            📁 <strong style="color: var(--text)">{uploaded_file.name}</strong>
+            &nbsp;·&nbsp; {file_size_mb:.1f} MB
+            </div>""",
+            unsafe_allow_html=True,
+        )
+
+        if st.button("🎙️  TRANSCRIBE", use_container_width=True, key="btn_transcribe"):
+            # Save uploaded file to temp location
+            suffix = Path(uploaded_file.name).suffix
+            with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+                tmp.write(uploaded_file.read())
+                tmp_path = tmp.name
+
+            try:
+                with st.status(
+                    "🔮 Processing meeting recording …", expanded=True
+                ) as status:
+                    # Stage 1: Transcription
+                    status.update(label="🎙️  Stage 1/2 — Transcribing voice with Whisper …")
+                    st.write("Loading Whisper model (local inference) …")
+
+                    processor = get_audio_processor()
+                    transcript_text = processor.transcribe_file(tmp_path)
+
+                    st.write(f"✅ Transcribed {len(transcript_text):,} characters")
+                    status.update(
+                        label="✅ Transcription complete!",
+                        state="complete",
+                    )
+
+                # Store in session state for the analysis step
+                st.session_state.transcribed_text = transcript_text
+
+                # Show transcript in an expander
+                with st.expander("📜 Show Full Transcript", expanded=False):
+                    st.text(transcript_text)
+
+            except Exception as exc:
+                st.error(f"❌ Transcription failed: {exc}")
+
+            finally:
+                # Clean up temp file
+                try:
+                    import os
+                    os.remove(tmp_path)
+                except OSError:
+                    pass
+
+    # If we have a previously transcribed text, show it
+    elif st.session_state.transcribed_text:
+        st.success("✅ Transcript loaded from previous upload")
+        with st.expander("📜 Show Full Transcript", expanded=False):
+            st.text(st.session_state.transcribed_text)
+
+
+# ── Tab 2: Paste Transcript ──────────────────────────────────────────
+with tab_paste:
+    pasted_transcript = st.text_area(
+        "Meeting Transcript",
+        height=220,
+        placeholder="Paste your raw meeting transcript here …",
+    )
+
+
+# ===================================================================== #
+#  DETERMINE ACTIVE TRANSCRIPT
+# ===================================================================== #
+# Priority: pasted text > uploaded transcription
+transcript = ""
+if pasted_transcript and pasted_transcript.strip():
+    transcript = pasted_transcript.strip()
+elif st.session_state.transcribed_text:
+    transcript = st.session_state.transcribed_text
+
+
+# ===================================================================== #
+#  ANALYZE BUTTON
+# ===================================================================== #
+process = st.button("⚡  ANALYZE TRANSCRIPT", use_container_width=True, key="btn_analyze")
 st.markdown("</div>", unsafe_allow_html=True)
 
 
@@ -349,17 +495,27 @@ st.markdown("</div>", unsafe_allow_html=True)
 #  PROCESSING & RESULTS
 # ===================================================================== #
 if process:
-    if not transcript.strip():
-        st.warning("⚠️  Paste a transcript above before analysing.")
+    if not transcript:
+        st.warning("⚠️  Upload a media file or paste a transcript first.")
     else:
         analyzer = get_analyzer()
 
-        with st.spinner("🔮  Neural analysis in progress — querying local LLM ..."):
+        with st.status(
+            "🧠 Extracting intelligence with Gemma …", expanded=True
+        ) as status:
+            status.update(label="🧠  Stage 2/2 — Extracting insights with Gemma …")
+            st.write(f"Sending {len(transcript):,} chars to local LLM (role: {role})")
+
             try:
                 result = analyzer.analyze(transcript, role)
             except RuntimeError as exc:
                 st.error(f"❌  Inference failed: {exc}")
                 st.stop()
+
+            status.update(
+                label="✅ Analysis complete!",
+                state="complete",
+            )
 
         # ── Summary ──────────────────────────────────────────────────
         st.markdown("### 📋 Summary")

@@ -1,3 +1,7 @@
 ollama
 pydantic
 streamlit
+pandas
+openai-whisper
+moviepy
+pydub
