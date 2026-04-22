@@ -255,7 +255,7 @@ st.markdown(
 #  3D SHOWCASE — Spacer that lets the neural sphere show through
 # ===================================================================== #
 st.markdown(
-    '<div style="height:75vh; display:flex; align-items:flex-end; justify-content:center; padding-bottom:2rem;">'
+    '<div style="height:40vh; display:flex; align-items:flex-end; justify-content:center; padding-bottom:2rem;">'
     '<div style="text-align:center; animation:bounce 2s ease-in-out infinite;">'
     '<p style="font-family:JetBrains Mono,monospace; font-size:0.65rem; color:rgba(0,240,255,0.4); letter-spacing:4px; text-transform:uppercase; margin-bottom:0.3rem;">Scroll Down</p>'
     '<p style="font-size:1.2rem; color:rgba(0,240,255,0.4);">▼</p>'
