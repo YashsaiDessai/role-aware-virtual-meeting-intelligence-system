@@ -1,5 +1,5 @@
 """
-🧠 Private Intelligence — Landing Page
+🧠 Meeting Intelligence — Landing Page
 
 Hero page with a Three.js neural sphere and navigation to the Analyzer.
 """
@@ -15,7 +15,7 @@ import streamlit.components.v1 as components
 #  PAGE CONFIG
 # ===================================================================== #
 st.set_page_config(
-    page_title="🧠 Private Intelligence",
+    page_title="🧠 Meeting Intelligence",
     page_icon="🧠",
     layout="wide",
     initial_sidebar_state="collapsed",
@@ -25,7 +25,7 @@ st.set_page_config(
 #  THREE.JS HERO SCENE
 # ===================================================================== #
 SCENE_HTML = (Path(__file__).parent / "home_scene.html").read_text(encoding="utf-8")
-components.html(SCENE_HTML, height=600, scrolling=False)
+components.html(SCENE_HTML, height=1, scrolling=False)
 
 # ===================================================================== #
 #  CSS — CYBERPUNK LANDING PAGE
@@ -56,14 +56,29 @@ st.markdown(
     header[data-testid="stHeader"] { background: transparent !important; }
     [data-testid="stAppViewBlockContainer"] { background: transparent !important; }
     #MainMenu, footer, [data-testid="stDecoration"] { display: none !important; }
-
-    /* Hide default Streamlit sidebar nav */
     [data-testid="stSidebarNav"] { display: none !important; }
     section[data-testid="stSidebar"] { display: none !important; }
 
     .block-container {
         padding-top: 0 !important;
         max-width: 1000px !important;
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: center !important;
+    }
+
+    /* Make every Streamlit element wrapper full-width and centered */
+    [data-testid="stVerticalBlock"] {
+        width: 100% !important;
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: center !important;
+    }
+
+    [data-testid="element-container"] {
+        width: 100% !important;
+        display: flex !important;
+        justify-content: center !important;
     }
 
     /* ── Three.js iframe ───────────────────────────────────────────── */
@@ -78,7 +93,6 @@ st.markdown(
         border: none !important;
     }
 
-    /* Prevent Streamlit's parent wrapper from clipping the iframe */
     [data-testid="stHtml"],
     [data-testid="element-container"]:has(iframe) {
         position: fixed !important;
@@ -89,28 +103,45 @@ st.markdown(
         pointer-events: none !important;
     }
 
-    /* All content sits above the 3D scene */
     .block-container, [data-testid="stVerticalBlock"] {
         position: relative !important;
         z-index: 1 !important;
     }
 
+    /* Collapse the component placeholder so it doesn't eat vertical space */
+    [data-testid="element-container"]:has(iframe) + [data-testid="element-container"],
+    [data-testid="stVerticalBlock"] > [data-testid="element-container"]:first-child {
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
     /* ── Hero section ──────────────────────────────────────────────── */
-    .hero-spacer { height: 18vh; }
+    .hero-spacer { height: 1vh; }
+
+    .hero-eyebrow {
+        text-align: center;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.7rem;
+        color: var(--cyan);
+        letter-spacing: 6px;
+        text-transform: uppercase;
+        margin-bottom: 1rem;
+        opacity: 0.8;
+    }
 
     .hero-title {
         font-family: 'Orbitron', sans-serif;
         font-weight: 900;
-        font-size: 3.2rem;
+        font-size: 3rem;
         text-align: center;
         background: linear-gradient(135deg, var(--cyan), var(--magenta), var(--violet));
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         background-clip: text;
-        letter-spacing: 6px;
+        letter-spacing: 5px;
         text-transform: uppercase;
-        line-height: 1.2;
-        margin-bottom: 0.5rem;
+        line-height: 1.15;
+        margin-bottom: 0.3rem;
         animation: glowPulse 3s ease-in-out infinite;
     }
     @keyframes glowPulse {
@@ -120,20 +151,21 @@ st.markdown(
 
     .hero-subtitle {
         text-align: center;
-        font-size: 0.9rem;
+        font-size: 0.78rem;
         color: var(--muted);
         letter-spacing: 5px;
         text-transform: uppercase;
-        margin-bottom: 2.5rem;
+        margin-bottom: 2rem;
     }
 
     .hero-desc {
         text-align: center;
-        max-width: 620px;
-        margin: 0 auto 3rem auto;
-        font-size: 0.95rem;
+        width: 100%;
+        max-width: 580px;
+        margin: 0 auto 2rem auto;
+        font-size: 0.88rem;
         line-height: 1.8;
-        color: rgba(224, 230, 240, 0.7);
+        color: rgba(224, 230, 240, 0.65);
     }
     .hero-desc strong {
         color: var(--cyan);
@@ -143,21 +175,24 @@ st.markdown(
     .feature-row {
         display: flex;
         justify-content: center;
-        gap: 1rem;
+        align-items: center;
+        gap: 0.8rem;
         flex-wrap: wrap;
-        margin-bottom: 3rem;
+        max-width: 700px;
+        margin: 0 auto 2.5rem auto;
     }
     .feature-pill {
         background: rgba(0, 240, 255, 0.04);
         border: 1px solid var(--border);
         border-radius: 50px;
-        padding: 0.6rem 1.4rem;
-        font-size: 0.75rem;
+        padding: 0.5rem 1.2rem;
+        font-size: 0.7rem;
         letter-spacing: 1.5px;
         text-transform: uppercase;
         color: var(--text);
         backdrop-filter: blur(8px);
         transition: all 0.3s ease;
+        white-space: nowrap;
     }
     .feature-pill:hover {
         border-color: var(--cyan);
@@ -171,30 +206,30 @@ st.markdown(
         margin: 0 auto;
         font-family: 'Orbitron', sans-serif !important;
         font-weight: 700;
-        font-size: 0.95rem;
+        font-size: 0.9rem;
         letter-spacing: 4px;
         text-transform: uppercase;
         color: #0a0a12 !important;
         background: linear-gradient(135deg, var(--cyan), var(--mint)) !important;
         border: none !important;
         border-radius: 50px !important;
-        padding: 1rem 3rem !important;
+        padding: 0.9rem 2.8rem !important;
         cursor: pointer;
         transition: all 0.3s ease;
-        box-shadow: 0 0 30px rgba(0,240,255,0.3), 0 0 60px rgba(0,240,255,0.1);
+        box-shadow: 0 0 25px rgba(0,240,255,0.25), 0 0 50px rgba(0,240,255,0.08);
     }
     .stButton > button:hover {
-        box-shadow: 0 0 40px rgba(0,240,255,0.5), 0 0 80px rgba(0,255,179,0.3);
+        box-shadow: 0 0 35px rgba(0,240,255,0.45), 0 0 70px rgba(0,255,179,0.2);
         transform: translateY(-2px);
     }
 
     /* ── Footer ────────────────────────────────────────────────────── */
     .home-footer {
         text-align: center;
-        margin-top: 4rem;
+        margin-top: 2.5rem;
         padding: 1rem;
-        font-size: 0.65rem;
-        color: rgba(107, 115, 148, 0.5);
+        font-size: 0.6rem;
+        color: rgba(107, 115, 148, 0.4);
         letter-spacing: 3px;
         text-transform: uppercase;
     }
@@ -214,12 +249,17 @@ st.markdown(
 st.markdown('<div class="hero-spacer"></div>', unsafe_allow_html=True)
 
 st.markdown(
-    '<h1 class="hero-title">Private<br>Intelligence</h1>',
+    '<p class="hero-eyebrow">⬡ Local-First · Zero Data Leakage</p>',
     unsafe_allow_html=True,
 )
 
 st.markdown(
-    '<p class="hero-subtitle">Role-Aware Meeting Analysis System</p>',
+    '<h1 class="hero-title">Meeting<br>Architect</h1>',
+    unsafe_allow_html=True,
+)
+
+st.markdown(
+    '<p class="hero-subtitle">Role-Aware Intelligence System</p>',
     unsafe_allow_html=True,
 )
 
@@ -228,21 +268,21 @@ st.markdown(
     <p class="hero-desc">
         Transform raw meeting transcripts into <strong>structured intelligence</strong>
         — decisions, action items, and role-tailored summaries.
-        Powered by <strong>local LLM inference</strong> with zero data leakage.
+        Powered by <strong>local LLM inference</strong> with complete privacy.
     </p>
     """,
     unsafe_allow_html=True,
 )
 
-# Feature pills
+# Feature pills — all in one row
 st.markdown(
     """
     <div class="feature-row">
-        <div class="feature-pill"><span class="pill-icon">🔒</span> 100% Private</div>
+        <div class="feature-pill"><span class="pill-icon">🔒</span> Private</div>
         <div class="feature-pill"><span class="pill-icon">🧠</span> Local LLM</div>
         <div class="feature-pill"><span class="pill-icon">🎯</span> Role-Aware</div>
         <div class="feature-pill"><span class="pill-icon">⚡</span> JSON Output</div>
-        <div class="feature-pill"><span class="pill-icon">🔧</span> Ollama + Gemma</div>
+        <div class="feature-pill"><span class="pill-icon">🎙️</span> Voice-to-Text</div>
     </div>
     """,
     unsafe_allow_html=True,
@@ -253,6 +293,6 @@ if st.button("🚀  LAUNCH ANALYZER"):
     st.switch_page("pages/1_Analyzer.py")
 
 st.markdown(
-    '<div class="home-footer">Built for hackathons · Powered by Gemma 4 · No cloud required</div>',
+    '<div class="home-footer">Built for Hackathons · Gemma 4 + Whisper · No Cloud Required</div>',
     unsafe_allow_html=True,
 )
