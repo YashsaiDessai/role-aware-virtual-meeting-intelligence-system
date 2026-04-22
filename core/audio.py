@@ -14,12 +14,53 @@ from __future__ import annotations
 
 import logging
 import os
+import shutil
+import subprocess
 import tempfile
 from pathlib import Path
 
 import streamlit as st
 
 logger = logging.getLogger(__name__)
+
+# ------------------------------------------------------------------ #
+#  Auto-detect ffmpeg and add to PATH if needed
+# ------------------------------------------------------------------ #
+def _ensure_ffmpeg_on_path() -> None:
+    """Find ffmpeg on the system and add its directory to PATH if missing.
+
+    Checks common install locations (winget, chocolatey, scoop, manual)
+    so that Whisper and moviepy can locate the binary without the user
+    needing to manually configure their system PATH.
+    """
+    if shutil.which("ffmpeg"):
+        return  # already reachable
+
+    # Common locations where ffmpeg may be installed on Windows
+    search_roots = [
+        Path(os.environ.get("LOCALAPPDATA", "")) / "Microsoft" / "WinGet" / "Packages",
+        Path("C:/ProgramData/chocolatey/bin"),
+        Path("C:/tools/ffmpeg"),
+        Path("C:/ffmpeg"),
+        Path(os.environ.get("USERPROFILE", "")) / "scoop" / "shims",
+    ]
+
+    for root in search_roots:
+        if not root.exists():
+            continue
+        for match in root.rglob("ffmpeg.exe"):
+            ffmpeg_dir = str(match.parent)
+            os.environ["PATH"] = ffmpeg_dir + os.pathsep + os.environ.get("PATH", "")
+            logger.info("✓ Found ffmpeg at %s — added to PATH", ffmpeg_dir)
+            return
+
+    logger.warning(
+        "⚠ ffmpeg not found. Whisper/moviepy need ffmpeg for audio processing. "
+        "Install it with:  winget install Gyan.FFmpeg"
+    )
+
+
+_ensure_ffmpeg_on_path()
 
 # Supported extensions
 VIDEO_EXTENSIONS = {".mp4", ".mov", ".webm", ".mkv", ".avi"}
@@ -96,31 +137,50 @@ class AudioProcessor:
     #  Private helpers
     # ------------------------------------------------------------------ #
     def _extract_audio(self, video_path: Path) -> str:
-        """Use moviepy to pull the audio track from a video file.
+        """Extract the audio track from a video file using ffmpeg directly.
 
+        Converts to 16 kHz mono WAV (optimal for Whisper).
         Returns the path to a temporary .wav file.
         """
-        try:
-            from moviepy import VideoFileClip
-        except ImportError:
+        ffmpeg_bin = shutil.which("ffmpeg")
+        if not ffmpeg_bin:
             raise RuntimeError(
-                "moviepy is required for video processing. "
-                "Install it with: pip install moviepy"
+                "ffmpeg is required for video processing but was not found. "
+                "Install it with:  winget install Gyan.FFmpeg"
             )
 
         tmp_wav = tempfile.mktemp(suffix=".wav", prefix="meeting_audio_")
         logger.info("Extracting audio from %s → %s", video_path, tmp_wav)
 
         try:
-            clip = VideoFileClip(str(video_path))
-            clip.audio.write_audiofile(
-                tmp_wav,
-                fps=16000,       # Whisper expects 16 kHz
-                nbytes=2,        # 16-bit
-                codec="pcm_s16le",
-                logger=None,     # suppress moviepy progress bars
+            result = subprocess.run(
+                [
+                    ffmpeg_bin,
+                    "-i", str(video_path),
+                    "-vn",                # drop video stream
+                    "-acodec", "pcm_s16le",  # 16-bit PCM
+                    "-ar", "16000",       # 16 kHz (Whisper optimal)
+                    "-ac", "1",           # mono
+                    "-y",                 # overwrite output
+                    tmp_wav,
+                ],
+                capture_output=True,
+                text=True,
+                timeout=300,  # 5 min timeout for large files
             )
-            clip.close()
+            if result.returncode != 0:
+                self._safe_delete(tmp_wav)
+                raise RuntimeError(
+                    f"ffmpeg exited with code {result.returncode}: {result.stderr[:500]}"
+                )
+        except subprocess.TimeoutExpired:
+            self._safe_delete(tmp_wav)
+            raise RuntimeError("Audio extraction timed out (>5 min)")
+        except FileNotFoundError:
+            self._safe_delete(tmp_wav)
+            raise RuntimeError("ffmpeg binary not found at runtime")
+        except RuntimeError:
+            raise
         except Exception as exc:
             self._safe_delete(tmp_wav)
             raise RuntimeError(
