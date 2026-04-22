@@ -244,47 +244,26 @@ st.markdown(
 )
 
 # ===================================================================== #
-#  HERO CONTENT
+#  HERO CONTENT — Single HTML block for perfect centering
 # ===================================================================== #
-st.markdown('<div class="hero-spacer"></div>', unsafe_allow_html=True)
-
 st.markdown(
-    '<p class="hero-eyebrow">⬡ Local-First · Zero Data Leakage</p>',
-    unsafe_allow_html=True,
-)
-
-st.markdown(
-    '<h1 class="hero-title">Meeting<br>Architect</h1>',
-    unsafe_allow_html=True,
-)
-
-st.markdown(
-    '<p class="hero-subtitle">Role-Aware Intelligence System</p>',
-    unsafe_allow_html=True,
-)
-
-st.markdown(
-    """
-    <p class="hero-desc">
-        Transform raw meeting transcripts into <strong>structured intelligence</strong>
-        — decisions, action items, and role-tailored summaries.
-        Powered by <strong>local LLM inference</strong> with complete privacy.
-    </p>
-    """,
-    unsafe_allow_html=True,
-)
-
-# Feature pills — all in one row
-st.markdown(
-    """
-    <div class="feature-row">
-        <div class="feature-pill"><span class="pill-icon">🔒</span> Private</div>
-        <div class="feature-pill"><span class="pill-icon">🧠</span> Local LLM</div>
-        <div class="feature-pill"><span class="pill-icon">🎯</span> Role-Aware</div>
-        <div class="feature-pill"><span class="pill-icon">⚡</span> JSON Output</div>
-        <div class="feature-pill"><span class="pill-icon">🎙️</span> Voice-to-Text</div>
-    </div>
-    """,
+    '<div style="width:100%; display:flex; flex-direction:column; align-items:center; padding-top:1vh;">'
+    '<p style="text-align:center; width:100%; font-family:JetBrains Mono,monospace; font-size:0.7rem; color:#00f0ff; letter-spacing:6px; text-transform:uppercase; margin-bottom:1rem; opacity:0.8;">⬡ Local-First · Zero Data Leakage</p>'
+    '<h1 style="text-align:center; width:100%; font-family:Orbitron,sans-serif; font-weight:900; font-size:3rem; background:linear-gradient(135deg,#00f0ff,#ff0099,#8b00ff); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; letter-spacing:5px; text-transform:uppercase; line-height:1.15; margin-bottom:0.3rem;">Meeting<br>Architect</h1>'
+    '<p style="text-align:center; width:100%; font-size:0.78rem; color:#6b7394; letter-spacing:5px; text-transform:uppercase; margin-bottom:1.8rem;">Role-Aware Intelligence System</p>'
+    '<div style="text-align:center; width:100%; max-width:560px; margin:0 auto 2rem auto; font-size:0.88rem; line-height:1.8; color:rgba(224,230,240,0.65);">'
+    'Transform raw meeting transcripts into <strong style="color:#00f0ff;">structured intelligence</strong> '
+    '— decisions, action items, and role-tailored summaries. '
+    'Powered by <strong style="color:#00f0ff;">local LLM inference</strong> with complete privacy.'
+    '</div>'
+    '<div style="display:flex; justify-content:center; align-items:center; gap:0.8rem; flex-wrap:wrap; max-width:700px; margin:0 auto 2rem auto; width:100%;">'
+    '<div class="feature-pill"><span class="pill-icon">🔒</span> Private</div>'
+    '<div class="feature-pill"><span class="pill-icon">🧠</span> Local LLM</div>'
+    '<div class="feature-pill"><span class="pill-icon">🎯</span> Role-Aware</div>'
+    '<div class="feature-pill"><span class="pill-icon">⚡</span> JSON Output</div>'
+    '<div class="feature-pill"><span class="pill-icon">🎙️</span> Voice-to-Text</div>'
+    '</div>'
+    '</div>',
     unsafe_allow_html=True,
 )
 
@@ -293,6 +272,8 @@ if st.button("🚀  LAUNCH ANALYZER"):
     st.switch_page("pages/1_Analyzer.py")
 
 st.markdown(
-    '<div class="home-footer">Built for Hackathons · Gemma 4 + Whisper · No Cloud Required</div>',
+    '<div style="text-align:center; margin-top:2rem; padding:1rem; font-size:0.6rem; color:rgba(107,115,148,0.4); letter-spacing:3px; text-transform:uppercase;">'
+    'Built for Hackathons · Gemma 4 + Whisper · No Cloud Required'
+    '</div>',
     unsafe_allow_html=True,
 )
