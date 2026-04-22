@@ -12,7 +12,6 @@ All processing is 100% local — zero data leaves the machine.
 
 from __future__ import annotations
 import whisper
-import moviepy.editor as mp  # This is the line that was failing
 import logging
 import os
 import shutil
