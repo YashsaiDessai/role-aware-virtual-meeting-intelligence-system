@@ -121,6 +121,29 @@ def inject_sidebar_css() -> None:
             margin-left: 0.4rem;
         }
 
+        /* ── Detected-category tags ───────────────────────────────── */
+        .vault-cat-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.25rem;
+            margin-top: 0.3rem;
+        }
+        .vault-cat-tag {
+            display: inline-block;
+            font-size: 0.45rem;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            padding: 0.1rem 0.35rem;
+            border-radius: 3px;
+            border: 1px solid rgba(0, 240, 255, 0.2);
+            color: #6b7394;
+        }
+        .vault-cat-tag.active {
+            background: rgba(0, 240, 255, 0.12);
+            border-color: rgba(0, 240, 255, 0.4);
+            color: #00f0ff;
+        }
+
         /* ── Sidebar expander styling ──────────────────────────────── */
         section[data-testid="stSidebar"] [data-testid="stExpander"] {
             border: 1px solid rgba(0, 240, 255, 0.1) !important;
@@ -199,9 +222,9 @@ def render_vault_sidebar(current_role: str = "Engineering") -> dict[str, Any] | 
 
         if not entries:
             st.markdown(
-                f'<div class="vault-empty">No {current_role} analyses yet.<br>'
-                f'Run an analysis with the {icon} {current_role} lens<br>'
-                f'to populate this vault.</div>',
+                f'<div class="vault-empty">No {current_role}-related meetings yet.<br>'
+                f'Meetings containing {current_role.lower()} keywords<br>'
+                f'will appear here automatically.</div>',
                 unsafe_allow_html=True,
             )
         else:
@@ -227,6 +250,20 @@ def render_vault_sidebar(current_role: str = "Engineering") -> dict[str, Any] | 
                     filepath = entry.get("_filepath")
                     if filepath:
                         selected_record = load_analysis(filepath)
+
+                # Show detected-category tags below each entry
+                detected = entry.get("detected_categories", [])
+                if detected and len(detected) > 1:
+                    tags_html = '<div class="vault-cat-row">'
+                    for cat in detected:
+                        cat_icon = _DEPT_ICONS.get(cat, "📁")
+                        active = " active" if cat == current_role else ""
+                        tags_html += (
+                            f'<span class="vault-cat-tag{active}">'
+                            f'{cat_icon} {cat}</span>'
+                        )
+                    tags_html += '</div>'
+                    st.markdown(tags_html, unsafe_allow_html=True)
 
         # ── Other departments (collapsed summary) ────────────────
         other_depts = [d for d in ["Engineering", "Product", "Management"] if d != current_role]
