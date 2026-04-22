@@ -4,7 +4,7 @@ Enforces strict schema validation for Ollama JSON-mode responses.
 """
 
 from enum import Enum
-from typing import List
+from typing import List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -27,13 +27,24 @@ class ActionItem(BaseModel):
         default=Priority.MEDIUM,
         description="Urgency level: high, medium, or low",
     )
+    deadline: Optional[str] = Field(
+        default=None,
+        description="Deadline or timeframe if mentioned, e.g. 'by Thursday', 'this sprint'",
+    )
 
 
 class MeetingOutput(BaseModel):
     """
     Top-level structured output from the meeting analysis pipeline.
-    Every field is required so Pydantic will reject partial LLM responses.
     """
+    summary: str = Field(
+        ...,
+        description="Concise role-tailored executive summary of the meeting (3-5 sentences)",
+    )
+    key_themes: List[str] = Field(
+        default_factory=list,
+        description="2-5 high-level themes or topics discussed in the meeting",
+    )
     decisions: List[str] = Field(
         ...,
         description="Key decisions made during the meeting",
@@ -42,7 +53,7 @@ class MeetingOutput(BaseModel):
         ...,
         description="Concrete next-step tasks with owners and priorities",
     )
-    summary: str = Field(
-        ...,
-        description="Concise role-tailored summary of the meeting",
+    risks: List[str] = Field(
+        default_factory=list,
+        description="Risks, blockers, or escalation points mentioned",
     )

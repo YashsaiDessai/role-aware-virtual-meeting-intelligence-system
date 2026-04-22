@@ -1,14 +1,16 @@
 """
 MeetingAnalyzer — core inference engine.
 
-Sends the transcript + role-specific prompt to Ollama (gemma4:e4b) in JSON
+Sends the transcript + role-specific prompt to Ollama (gemma4:e2b) in JSON
 mode and validates the response against MeetingOutput with a retry loop.
+Includes markdown-fence stripping and regex fallback for robust JSON extraction.
 """
 
 from __future__ import annotations
 
 import json
 import logging
+import re
 import sys
 from typing import Optional
 
@@ -24,7 +26,47 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-MAX_RETRIES = 2  # total attempts = 1 initial + MAX_RETRIES
+MAX_RETRIES = 3  # total attempts = 1 initial + MAX_RETRIES
+
+_JSON_FENCE_RE = re.compile(r"```(?:json)?\s*(.*?)\s*```", re.DOTALL)
+_JSON_OBJECT_RE = re.compile(r"\{.*\}", re.DOTALL)
+
+
+def _extract_json(raw: str) -> dict:
+    """
+    Robustly extract a JSON object from Gemma's response.
+
+    Gemma sometimes wraps output in markdown fences or adds preamble text
+    despite being instructed not to. This function tries multiple strategies:
+    1. Parse the raw string directly.
+    2. Strip a ```json ... ``` fence and parse.
+    3. Find the first {...} block via regex.
+    """
+    raw = raw.strip()
+
+    # Strategy 1 — clean JSON
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        pass
+
+    # Strategy 2 — strip markdown fences
+    match = _JSON_FENCE_RE.search(raw)
+    if match:
+        try:
+            return json.loads(match.group(1))
+        except json.JSONDecodeError:
+            pass
+
+    # Strategy 3 — regex grab first {...} block
+    match = _JSON_OBJECT_RE.search(raw)
+    if match:
+        try:
+            return json.loads(match.group(0))
+        except json.JSONDecodeError:
+            pass
+
+    raise json.JSONDecodeError("No valid JSON object found in response", raw, 0)
 
 
 class MeetingAnalyzer:
@@ -92,8 +134,8 @@ class MeetingAnalyzer:
                 raw_text: str = response["response"]
                 logger.debug("Raw LLM response:\n%s", raw_text)
 
-                # Parse and validate
-                data = json.loads(raw_text)
+                # Robust parse: handles markdown fences / preamble text
+                data = _extract_json(raw_text)
                 result = MeetingOutput.model_validate(data)
 
                 logger.info("✓ Validation passed on attempt %d", attempt)

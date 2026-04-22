@@ -5,3 +5,6 @@ pandas
 openai-whisper
 moviepy
 pydub
+fpdf2
+python-pptx
+imageio-ffmpeg
