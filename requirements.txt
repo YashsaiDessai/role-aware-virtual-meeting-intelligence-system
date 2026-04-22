@@ -8,3 +8,5 @@ pydub
 fpdf2
 python-pptx
 imageio-ffmpeg
+twilio
+python-dotenv

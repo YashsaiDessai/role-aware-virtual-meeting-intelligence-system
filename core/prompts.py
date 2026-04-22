@@ -87,3 +87,17 @@ Surface all risks and open issues in the "risks" field.
 
 {_SCHEMA_INSTRUCTION}""",
 }
+
+# ------------------------------------------------------------------ #
+# EXECUTIVE ASSISTANT (WHATSAPP SUMMARY)
+# ------------------------------------------------------------------ #
+WHATSAPP_PROMPT = """I am providing a raw transcript from a project meeting. Your task is to act as an Executive Assistant. Extract only the most critical information to be sent via WhatsApp.
+
+**Format requirements:**
+ 1. Use a clear header: 📌 *MEETING SUMMARY: [Project Name]*
+ 2. Use bullet points for **Decisions Made**.
+ 3. List **Action Items** with the owner's name (e.g., @Waylen).
+ 4. Keep the total length under 800 characters to ensure readability on mobile.
+ 5. Output ONLY the message body, no conversational filler.
+
+**Transcript:** {transcript}"""

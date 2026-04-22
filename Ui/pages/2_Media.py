@@ -1136,7 +1136,7 @@ if result is not None:
         unsafe_allow_html=True,
     )
 
-    export_col1, export_col2 = st.columns(2)
+    export_col1, export_col2, export_col3 = st.columns(3)
 
     with export_col1:
         try:
@@ -1169,3 +1169,15 @@ if result is not None:
             st.caption(f"PPTX export requires: `pip install python-pptx`")
         except Exception as e:
             st.caption(f"PPTX error: {e}")
+
+    with export_col3:
+        if st.button("📱  WHATSAPP SUMMARY", use_container_width=True, key="btn_whatsapp"):
+            with st.spinner("Generating & sending to WhatsApp..."):
+                try:
+                    analyzer = get_analyzer()
+                    whatsapp_msg = analyzer.generate_whatsapp_summary(st.session_state.transcribed_text)
+                    from core.whatsapp import send_whatsapp_summary
+                    send_whatsapp_summary(whatsapp_msg)
+                    st.toast("WhatsApp message sent!", icon="📱")
+                except Exception as e:
+                    st.error(f"WhatsApp error: {e}")

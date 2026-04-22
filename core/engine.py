@@ -163,6 +163,23 @@ class MeetingAnalyzer:
             f"All {MAX_RETRIES + 1} attempts failed. Last error: {last_error}"
         )
 
+    def generate_whatsapp_summary(self, transcript: str) -> str:
+        """
+        Generate a concise WhatsApp summary using the Executive Assistant prompt.
+        This ignores JSON schemas and returns raw plain-text.
+        """
+        from core.prompts import WHATSAPP_PROMPT
+        
+        user_prompt = WHATSAPP_PROMPT.format(transcript=transcript)
+        
+        logger.info("Generating WhatsApp summary (raw text mode)...")
+        response = ollama.generate(
+            model=self.model,
+            prompt=user_prompt,
+            options={"temperature": 0.2},
+        )
+        return response["response"].strip()
+
 
 # ===================================================================== #
 # Quick smoke-test with a hardcoded messy transcript
