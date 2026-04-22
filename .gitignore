@@ -160,3 +160,6 @@ cython_debug/
 .idea/
 *.swp
 .DS_Store
+
+# Meeting Vault (local analysis history)
+data/vault/

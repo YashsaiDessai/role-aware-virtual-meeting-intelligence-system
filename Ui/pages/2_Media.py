@@ -1,18 +1,16 @@
 """
-⚡ Analyzer — Transcript Processing Page
+🎙️ Media Analyzer — Upload Audio/Video & Analyze
 
-Cyberpunk-themed interface for inputting transcripts and viewing
-role-aware analysis results from the MeetingAnalyzer engine.
-
-Supports two input modes:
-  1. 📎 Upload a video/audio file → local Whisper transcription
-  2. 📝 Paste raw transcript text directly
+Cyberpunk-themed interface for uploading meeting recordings (audio/video),
+transcribing them with local Whisper, and viewing role-aware analysis
+results from the MeetingAnalyzer engine.
 
 The 3D document-stack background responds to the role selectbox.
 """
 
 from __future__ import annotations
 
+import os
 import sys
 import tempfile
 from pathlib import Path
@@ -28,6 +26,14 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from core.audio import AudioProcessor, ALL_EXTENSIONS  # noqa: E402
 from core.engine import MeetingAnalyzer  # noqa: E402
+from core.storage import save_analysis  # noqa: E402
+
+# ── Add Ui directory to path for vault_sidebar import ────────────────
+UI_DIR = Path(__file__).resolve().parent.parent
+if str(UI_DIR) not in sys.path:
+    sys.path.insert(0, str(UI_DIR))
+
+from vault_sidebar import render_vault_sidebar  # noqa: E402
 
 
 # ── Cached resources (survive reruns) ────────────────────────────────
@@ -47,10 +53,10 @@ def get_audio_processor() -> AudioProcessor:
 #  PAGE CONFIG
 # ===================================================================== #
 st.set_page_config(
-    page_title="⚡ Analyzer | Private Intelligence",
-    page_icon="⚡",
+    page_title="🎙️ Media Analyzer | Private Intelligence",
+    page_icon="🎙️",
     layout="wide",
-    initial_sidebar_state="collapsed",
+    initial_sidebar_state="expanded",
 )
 
 
@@ -102,7 +108,6 @@ st.markdown(
     [data-testid="stAppViewBlockContainer"] {{ background: transparent !important; }}
     #MainMenu, footer, [data-testid="stDecoration"] {{ display: none !important; }}
     [data-testid="stSidebarNav"] {{ display: none !important; }}
-    section[data-testid="stSidebar"] {{ display: none !important; }}
 
     .block-container {{
         padding-top: 1.5rem !important;
@@ -297,26 +302,6 @@ st.markdown(
         background: rgba(0, 240, 255, 0.05) !important;
     }}
 
-    /* ── Tabs styling ─────────────────────────────────────────────── */
-    .stTabs [data-baseweb="tab-list"] {{
-        gap: 0.5rem;
-    }}
-    .stTabs [data-baseweb="tab"] {{
-        font-family: 'Orbitron', sans-serif !important;
-        font-size: 0.7rem !important;
-        letter-spacing: 2px !important;
-        color: var(--muted) !important;
-        background: transparent !important;
-        border: 1px solid var(--border) !important;
-        border-radius: 6px !important;
-        padding: 0.5rem 1.2rem !important;
-    }}
-    .stTabs [aria-selected="true"] {{
-        color: var(--cyan) !important;
-        border-color: var(--cyan) !important;
-        background: rgba(0, 240, 255, 0.06) !important;
-    }}
-
     /* ── Status/Expander ──────────────────────────────────────────── */
     [data-testid="stExpander"] {{
         border: 1px solid var(--border) !important;
@@ -342,14 +327,17 @@ st.markdown(
 # ===================================================================== #
 #  HEADER + BACK NAVIGATION
 # ===================================================================== #
+# ── Vault sidebar (must be called before main content) ──────────────
+vault_record = render_vault_sidebar(current_role=st.session_state.analyzer_role)
+
 bcol1, bcol2 = st.columns([1, 8])
 with bcol1:
     if st.button("← BACK"):
         st.switch_page("app.py")
 
-st.title("⚡ Analyzer")
+st.title("🎙️ Media Analyzer")
 st.markdown(
-    '<p class="page-sub">Upload media · Select role · Extract intelligence</p>',
+    '<p class="page-sub">Upload audio/video · Transcribe locally · Extract intelligence</p>',
     unsafe_allow_html=True,
 )
 
@@ -392,112 +380,128 @@ components.html(BG_HTML, height=600, scrolling=False)
 
 
 # ===================================================================== #
-#  INPUT: TABS — Upload Media  |  Paste Transcript
+#  INPUT: FILE UPLOAD
 # ===================================================================== #
-tab_upload, tab_paste = st.tabs(["📎  UPLOAD MEDIA", "📝  PASTE TRANSCRIPT"])
+uploaded_file = st.file_uploader(
+    "Upload a meeting recording",
+    type=[ext.lstrip(".") for ext in ALL_EXTENSIONS],
+    help="Video (.mp4, .mov, .webm, .mkv, .avi) or Audio (.wav, .mp3, .m4a, .ogg, .flac)",
+)
 
-# ── Tab 1: File Upload ───────────────────────────────────────────────
-with tab_upload:
-    uploaded_file = st.file_uploader(
-        "Upload a meeting recording",
-        type=[ext.lstrip(".") for ext in ALL_EXTENSIONS],
-        help="Video (.mp4, .mov, .webm, .mkv, .avi) or Audio (.wav, .mp3, .m4a, .ogg, .flac)",
+if uploaded_file is not None:
+    # Show file info
+    file_size_mb = uploaded_file.size / (1024 * 1024)
+    st.markdown(
+        f"""<div style="font-size:0.78rem; color: var(--muted); margin: 0.4rem 0 0.8rem;">
+        📁 <strong style="color: var(--text)">{uploaded_file.name}</strong>
+        &nbsp;·&nbsp; {file_size_mb:.1f} MB
+        </div>""",
+        unsafe_allow_html=True,
     )
 
-    if uploaded_file is not None:
-        # Show file info
-        file_size_mb = uploaded_file.size / (1024 * 1024)
-        st.markdown(
-            f"""<div style="font-size:0.78rem; color: var(--muted); margin: 0.4rem 0 0.8rem;">
-            📁 <strong style="color: var(--text)">{uploaded_file.name}</strong>
-            &nbsp;·&nbsp; {file_size_mb:.1f} MB
-            </div>""",
-            unsafe_allow_html=True,
-        )
+    if st.button("🎙️  TRANSCRIBE", use_container_width=True, key="btn_transcribe"):
+        # Save uploaded file to temp location
+        suffix = Path(uploaded_file.name).suffix
+        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+            tmp.write(uploaded_file.read())
+            tmp_path = tmp.name
 
-        if st.button("🎙️  TRANSCRIBE", use_container_width=True, key="btn_transcribe"):
-            # Save uploaded file to temp location
-            suffix = Path(uploaded_file.name).suffix
-            with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
-                tmp.write(uploaded_file.read())
-                tmp_path = tmp.name
+        try:
+            with st.status(
+                "🔮 Processing meeting recording …", expanded=True
+            ) as status:
+                # Stage 1: Transcription
+                status.update(label="🎙️  Stage 1/2 — Transcribing voice with Whisper …")
+                st.write("Loading Whisper model (local inference) …")
 
+                processor = get_audio_processor()
+                transcript_text = processor.transcribe_file(tmp_path)
+
+                st.write(f"✅ Transcribed {len(transcript_text):,} characters")
+                status.update(
+                    label="✅ Transcription complete!",
+                    state="complete",
+                )
+
+            # Store in session state for the analysis step
+            st.session_state.transcribed_text = transcript_text
+
+        except Exception as exc:
+            st.error(f"❌ Transcription failed: {exc}")
+
+        finally:
+            # Clean up temp file
             try:
-                with st.status(
-                    "🔮 Processing meeting recording …", expanded=True
-                ) as status:
-                    # Stage 1: Transcription
-                    status.update(label="🎙️  Stage 1/2 — Transcribing voice with Whisper …")
-                    st.write("Loading Whisper model (local inference) …")
+                os.remove(tmp_path)
+            except OSError:
+                pass
 
-                    processor = get_audio_processor()
-                    transcript_text = processor.transcribe_file(tmp_path)
-
-                    st.write(f"✅ Transcribed {len(transcript_text):,} characters")
-                    status.update(
-                        label="✅ Transcription complete!",
-                        state="complete",
-                    )
-
-                # Store in session state for the analysis step
-                st.session_state.transcribed_text = transcript_text
-
-                # Show transcript in an expander
-                with st.expander("📜 Show Full Transcript", expanded=False):
-                    st.text(transcript_text)
-
-            except Exception as exc:
-                st.error(f"❌ Transcription failed: {exc}")
-
-            finally:
-                # Clean up temp file
-                try:
-                    import os
-                    os.remove(tmp_path)
-                except OSError:
-                    pass
-
-    # If we have a previously transcribed text, show it
-    elif st.session_state.transcribed_text:
-        st.success("✅ Transcript loaded from previous upload")
-        with st.expander("📜 Show Full Transcript", expanded=False):
-            st.text(st.session_state.transcribed_text)
-
-
-# ── Tab 2: Paste Transcript ──────────────────────────────────────────
-with tab_paste:
-    pasted_transcript = st.text_area(
-        "Meeting Transcript",
-        height=220,
-        placeholder="Paste your raw meeting transcript here …",
-    )
-
-
-# ===================================================================== #
-#  DETERMINE ACTIVE TRANSCRIPT
-# ===================================================================== #
-# Priority: pasted text > uploaded transcription
-transcript = ""
-if pasted_transcript and pasted_transcript.strip():
-    transcript = pasted_transcript.strip()
-elif st.session_state.transcribed_text:
-    transcript = st.session_state.transcribed_text
+# If we have a previously transcribed text, show it
+if st.session_state.transcribed_text:
+    with st.expander("📜 Show Full Transcript", expanded=False):
+        st.text(st.session_state.transcribed_text)
 
 
 # ===================================================================== #
 #  ANALYZE BUTTON
 # ===================================================================== #
+transcript = st.session_state.transcribed_text
+
 process = st.button("⚡  ANALYZE TRANSCRIPT", use_container_width=True, key="btn_analyze")
 st.markdown("</div>", unsafe_allow_html=True)
+
+
+# ===================================================================== #
+#  ARCHIVED RECORD DISPLAY (from vault sidebar)
+# ===================================================================== #
+if vault_record is not None:
+    st.markdown(
+        '<div style="font-size:0.7rem; color:#00ffd4; letter-spacing:2px; '
+        'text-transform:uppercase; margin-bottom:0.8rem;">'
+        '🗄️ Viewing Archived Analysis</div>',
+        unsafe_allow_html=True,
+    )
+
+    st.markdown("### 📋 Summary")
+    st.info(vault_record.get("summary", ""))
+
+    st.markdown("### 🎯 Key Decisions")
+    decisions = vault_record.get("decisions", [])
+    if decisions:
+        for d in decisions:
+            st.markdown(
+                f'<div class="decision-item">{d}</div>',
+                unsafe_allow_html=True,
+            )
+    else:
+        st.caption("No explicit decisions were identified.")
+
+    st.markdown("### ⚡ Action Items")
+    items = vault_record.get("action_items", [])
+    if items:
+        df = pd.DataFrame(items)
+        col_map = {"task": "Task", "owner": "Owner", "priority": "Priority"}
+        df.rename(columns=col_map, inplace=True)
+        if "Priority" in df.columns:
+            df["Priority"] = df["Priority"].str.upper()
+        st.table(df)
+    else:
+        st.caption("No action items were extracted.")
+
+    with st.expander("📜 Transcript Snippet", expanded=False):
+        st.text(vault_record.get("transcript_snippet", "(not available)"))
+
+    st.stop()  # Don't show the normal analysis flow when viewing archived
 
 
 # ===================================================================== #
 #  PROCESSING & RESULTS
 # ===================================================================== #
 if process:
-    if not transcript:
-        st.warning("⚠️  Upload a media file or paste a transcript first.")
+    if not transcript or not transcript.strip():
+        st.warning("⚠️  Upload and transcribe a media file first.")
     else:
+        transcript = transcript.strip()
         analyzer = get_analyzer()
 
         with st.status(
@@ -516,6 +520,25 @@ if process:
                 label="✅ Analysis complete!",
                 state="complete",
             )
+
+        # ── Save to vault ────────────────────────────────────────────
+        action_dicts = [
+            {
+                "task": item.task,
+                "owner": item.owner,
+                "priority": item.priority.value,
+            }
+            for item in result.action_items
+        ]
+        save_analysis(
+            department=role,
+            summary=result.summary,
+            decisions=result.decisions,
+            action_items=action_dicts,
+            transcript_snippet=transcript,
+            source="media",
+        )
+        st.toast("💾 Saved to Meeting Vault", icon="✅")
 
         # ── Summary ──────────────────────────────────────────────────
         st.markdown("### 📋 Summary")
@@ -548,3 +571,4 @@ if process:
             st.table(df)
         else:
             st.caption("No action items were extracted.")
+

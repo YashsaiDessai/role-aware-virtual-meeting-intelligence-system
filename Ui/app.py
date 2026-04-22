@@ -255,7 +255,7 @@ st.markdown(
 #  3D SHOWCASE — Spacer that lets the neural sphere show through
 # ===================================================================== #
 st.markdown(
-    '<div style="height:40vh; display:flex; align-items:flex-end; justify-content:center; padding-bottom:2rem;">'
+    '<div style="height:12vh; display:flex; align-items:flex-end; justify-content:center; padding-bottom:1rem;">'
     '<div style="text-align:center; animation:bounce 2s ease-in-out infinite;">'
     '<p style="font-family:JetBrains Mono,monospace; font-size:0.65rem; color:rgba(0,240,255,0.4); letter-spacing:4px; text-transform:uppercase; margin-bottom:0.3rem;">Scroll Down</p>'
     '<p style="font-size:1.2rem; color:rgba(0,240,255,0.4);">▼</p>'
@@ -269,7 +269,7 @@ st.markdown(
 #  HERO CONTENT — Single HTML block for perfect centering
 # ===================================================================== #
 st.markdown(
-    '<div style="width:100%; display:flex; flex-direction:column; align-items:center; padding-top:3vh;">'\
+    '<div style="width:100%; display:flex; flex-direction:column; align-items:center; padding-top:1vh;">'\
     '<p style="text-align:center; width:100%; font-family:JetBrains Mono,monospace; font-size:0.7rem; color:#00f0ff; letter-spacing:6px; text-transform:uppercase; margin-bottom:1rem; opacity:0.8;">⬡ Local-First · Zero Data Leakage</p>'
     '<h1 style="text-align:center; width:100%; font-family:Orbitron,sans-serif; font-weight:900; font-size:3rem; background:linear-gradient(135deg,#00f0ff,#ff0099,#8b00ff); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; letter-spacing:5px; text-transform:uppercase; line-height:1.15; margin-bottom:0.3rem;">Meeting<br>Architect</h1>'
     '<p style="text-align:center; width:100%; font-size:0.78rem; color:#6b7394; letter-spacing:5px; text-transform:uppercase; margin-bottom:1.8rem;">Role-Aware Intelligence System</p>'
@@ -289,9 +289,92 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# CTA Button — navigates to the Analyzer page
-if st.button("🚀  LAUNCH ANALYZER"):
-    st.switch_page("pages/1_Analyzer.py")
+# ===================================================================== #
+#  CTA — Clickable Option Cards (styled native buttons)
+# ===================================================================== #
+
+# CSS that reskins the two st.button elements into card-style widgets
+st.markdown(
+    """
+    <style>
+    /* ── Card-button styling ─────────────────────────────────────── */
+
+    /* Target the two CTA columns */
+    [data-testid="stHorizontalBlock"]:last-of-type {
+        max-width: 700px !important;
+        margin: 0 auto !important;
+        gap: 1.5rem !important;
+    }
+
+    /* Restyle every button inside the CTA row as a card */
+    [data-testid="stHorizontalBlock"]:last-of-type .stButton > button {
+        width: 100% !important;
+        min-height: 180px !important;
+        background: rgba(10, 10, 18, 0.7) !important;
+        backdrop-filter: blur(16px) !important;
+        border: 1px solid rgba(0, 240, 255, 0.15) !important;
+        border-radius: 14px !important;
+        padding: 1.6rem 1.2rem !important;
+        text-align: center !important;
+        cursor: pointer !important;
+        transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1) !important;
+        color: #e0e6f0 !important;
+        font-family: 'JetBrains Mono', monospace !important;
+        font-size: 0.75rem !important;
+        letter-spacing: 1px !important;
+        line-height: 1.8 !important;
+        white-space: pre-line !important;
+        box-shadow: none !important;
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: center !important;
+        justify-content: center !important;
+    }
+
+    [data-testid="stHorizontalBlock"]:last-of-type .stButton > button:hover {
+        border-color: #00ffd4 !important;
+        box-shadow: 0 0 25px rgba(0,255,212,0.25),
+                    0 0 50px rgba(0,255,212,0.08),
+                    inset 0 0 20px rgba(0,255,212,0.03) !important;
+        transform: translateY(-5px) !important;
+        background: rgba(10, 10, 18, 0.85) !important;
+        color: #00ffd4 !important;
+    }
+
+    [data-testid="stHorizontalBlock"]:last-of-type .stButton > button:active {
+        transform: translateY(-2px) !important;
+        box-shadow: 0 0 15px rgba(0,255,212,0.35),
+                    0 0 30px rgba(0,255,212,0.12) !important;
+    }
+
+    [data-testid="stHorizontalBlock"]:last-of-type .stButton > button:focus {
+        box-shadow: 0 0 20px rgba(0,255,212,0.2) !important;
+        border-color: #00ffd4 !important;
+    }
+
+    /* Make column containers stretch equally */
+    [data-testid="stHorizontalBlock"]:last-of-type [data-testid="stColumn"] {
+        flex: 1 !important;
+    }
+
+    [data-testid="stHorizontalBlock"]:last-of-type .stButton {
+        width: 100% !important;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+# The two card-buttons — clicking them triggers native Streamlit navigation
+col_left, col_right = st.columns(2)
+
+with col_left:
+    if st.button("📝\n\nTRANSCRIPT\n\nPaste raw meeting text\nand analyze instantly", key="card_transcript", use_container_width=True):
+        st.switch_page("pages/1_Transcript.py")
+
+with col_right:
+    if st.button("🎙️\n\nAUDIO / VIDEO\n\nUpload a recording\nWhisper transcribes locally", key="card_media", use_container_width=True):
+        st.switch_page("pages/2_Media.py")
 
 st.markdown(
     '<div style="text-align:center; margin-top:2rem; padding:1rem; font-size:0.6rem; color:rgba(107,115,148,0.4); letter-spacing:3px; text-transform:uppercase;">'
