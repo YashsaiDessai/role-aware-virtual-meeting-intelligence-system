@@ -25,7 +25,7 @@ st.set_page_config(
 #  THREE.JS HERO SCENE
 # ===================================================================== #
 SCENE_HTML = (Path(__file__).parent / "home_scene.html").read_text(encoding="utf-8")
-components.html(SCENE_HTML, height=1, scrolling=False)
+components.html(SCENE_HTML, height=600, scrolling=False)
 
 # ===================================================================== #
 #  CSS — CYBERPUNK LANDING PAGE
@@ -109,10 +109,18 @@ st.markdown(
     }
 
     /* Collapse the component placeholder so it doesn't eat vertical space */
+    [data-testid="stHtml"] {
+        height: 0 !important;
+        min-height: 0 !important;
+        overflow: visible !important;
+    }
     [data-testid="element-container"]:has(iframe) + [data-testid="element-container"],
     [data-testid="stVerticalBlock"] > [data-testid="element-container"]:first-child {
         margin: 0 !important;
         padding: 0 !important;
+        height: 0 !important;
+        min-height: 0 !important;
+        overflow: visible !important;
     }
 
     /* ── Hero section ──────────────────────────────────────────────── */
@@ -244,10 +252,24 @@ st.markdown(
 )
 
 # ===================================================================== #
+#  3D SHOWCASE — Spacer that lets the neural sphere show through
+# ===================================================================== #
+st.markdown(
+    '<div style="height:75vh; display:flex; align-items:flex-end; justify-content:center; padding-bottom:2rem;">'
+    '<div style="text-align:center; animation:bounce 2s ease-in-out infinite;">'
+    '<p style="font-family:JetBrains Mono,monospace; font-size:0.65rem; color:rgba(0,240,255,0.4); letter-spacing:4px; text-transform:uppercase; margin-bottom:0.3rem;">Scroll Down</p>'
+    '<p style="font-size:1.2rem; color:rgba(0,240,255,0.4);">▼</p>'
+    '</div>'
+    '</div>'
+    '<style>@keyframes bounce { 0%,100% { transform:translateY(0); } 50% { transform:translateY(8px); } }</style>',
+    unsafe_allow_html=True,
+)
+
+# ===================================================================== #
 #  HERO CONTENT — Single HTML block for perfect centering
 # ===================================================================== #
 st.markdown(
-    '<div style="width:100%; display:flex; flex-direction:column; align-items:center; padding-top:1vh;">'
+    '<div style="width:100%; display:flex; flex-direction:column; align-items:center; padding-top:3vh;">'\
     '<p style="text-align:center; width:100%; font-family:JetBrains Mono,monospace; font-size:0.7rem; color:#00f0ff; letter-spacing:6px; text-transform:uppercase; margin-bottom:1rem; opacity:0.8;">⬡ Local-First · Zero Data Leakage</p>'
     '<h1 style="text-align:center; width:100%; font-family:Orbitron,sans-serif; font-weight:900; font-size:3rem; background:linear-gradient(135deg,#00f0ff,#ff0099,#8b00ff); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; letter-spacing:5px; text-transform:uppercase; line-height:1.15; margin-bottom:0.3rem;">Meeting<br>Architect</h1>'
     '<p style="text-align:center; width:100%; font-size:0.78rem; color:#6b7394; letter-spacing:5px; text-transform:uppercase; margin-bottom:1.8rem;">Role-Aware Intelligence System</p>'
