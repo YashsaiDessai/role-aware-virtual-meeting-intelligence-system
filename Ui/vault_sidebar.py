@@ -144,6 +144,53 @@ def inject_sidebar_css() -> None:
             color: #00f0ff;
         }
 
+        /* ── Department badge buttons ─────────────────────────────── */
+        .dept-badge-row {
+            display: flex;
+            justify-content: center;
+            gap: 0.4rem;
+            margin: 0.3rem 0 0.6rem 0;
+        }
+
+        /* Override sidebar button defaults for badge buttons */
+        section[data-testid="stSidebar"] .dept-badge-wrap .stButton > button {
+            font-family: 'JetBrains Mono', monospace !important;
+            font-weight: 500;
+            font-size: 0.58rem !important;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            padding: 0.35rem 0.7rem !important;
+            border-radius: 20px !important;
+            min-height: 0 !important;
+            width: auto !important;
+            white-space: nowrap;
+            transition: all 0.3s ease !important;
+            color: #6b7394 !important;
+            background: rgba(0, 240, 255, 0.04) !important;
+            border: 1px solid rgba(0, 240, 255, 0.12) !important;
+            box-shadow: none !important;
+        }
+        section[data-testid="stSidebar"] .dept-badge-wrap .stButton > button:hover {
+            color: #e0e6f0 !important;
+            border-color: rgba(0, 240, 255, 0.35) !important;
+            background: rgba(0, 240, 255, 0.08) !important;
+            box-shadow: 0 0 10px rgba(0, 240, 255, 0.12) !important;
+            transform: none !important;
+        }
+
+        /* Active badge — bright glow */
+        section[data-testid="stSidebar"] .dept-badge-active .stButton > button {
+            color: #00f0ff !important;
+            background: rgba(0, 240, 255, 0.12) !important;
+            border: 1px solid rgba(0, 240, 255, 0.5) !important;
+            box-shadow: 0 0 12px rgba(0, 240, 255, 0.25),
+                        0 0 24px rgba(0, 240, 255, 0.08) !important;
+        }
+        section[data-testid="stSidebar"] .dept-badge-active .stButton > button:hover {
+            box-shadow: 0 0 18px rgba(0, 240, 255, 0.35),
+                        0 0 30px rgba(0, 240, 255, 0.12) !important;
+        }
+
         /* ── Sidebar expander styling ──────────────────────────────── */
         section[data-testid="stSidebar"] [data-testid="stExpander"] {
             border: 1px solid rgba(0, 240, 255, 0.1) !important;
@@ -159,7 +206,7 @@ def inject_sidebar_css() -> None:
         }
 
         /* ── Clear button ──────────────────────────────────────────── */
-        section[data-testid="stSidebar"] .stButton > button {
+        section[data-testid="stSidebar"] .vault-clear-wrap .stButton > button {
             width: 100%;
             font-family: 'JetBrains Mono', monospace !important;
             font-weight: 500;
@@ -173,7 +220,7 @@ def inject_sidebar_css() -> None:
             padding: 0.5rem 1rem !important;
             box-shadow: none !important;
         }
-        section[data-testid="stSidebar"] .stButton > button:hover {
+        section[data-testid="stSidebar"] .vault-clear-wrap .stButton > button:hover {
             background: rgba(255, 68, 102, 0.18) !important;
             border-color: rgba(255, 68, 102, 0.5) !important;
             box-shadow: 0 0 15px rgba(255, 68, 102, 0.15) !important;
@@ -208,11 +255,32 @@ def render_vault_sidebar(current_role: str = "Engineering") -> dict[str, Any] | 
     with st.sidebar:
         st.markdown('<div class="vault-header">🗄️ Meeting Vault</div>', unsafe_allow_html=True)
 
+        # ── Interactive department badges ─────────────────────────
+        badge_cols = st.columns(3)
+        all_departments = ["Engineering", "Product", "Management"]
+        for col, dept in zip(badge_cols, all_departments):
+            dept_icon = _DEPT_ICONS.get(dept, "📁")
+            is_active = dept == current_role
+            css_class = "dept-badge-active" if is_active else "dept-badge-wrap"
+            with col:
+                st.markdown(f'<div class="{css_class}">', unsafe_allow_html=True)
+                if st.button(
+                    f"{dept_icon} {dept}",
+                    key=f"badge_{dept}",
+                    use_container_width=True,
+                ):
+                    if dept != current_role:
+                        st.session_state.analyzer_role = dept
+                        st.rerun()
+                st.markdown('</div>', unsafe_allow_html=True)
+
+        st.markdown('<hr class="vault-divider">', unsafe_allow_html=True)
+
         # Show which lens is active
         st.markdown(
-            f'<div style="text-align:center; font-size:0.65rem; color:#6b7394; '
+            f'<div style="text-align:center; font-size:0.6rem; color:#6b7394; '
             f'letter-spacing:2px; text-transform:uppercase; margin-bottom:0.3rem;">'
-            f'{icon} {current_role} Lens</div>',
+            f'{icon} {current_role} Lens Active</div>',
             unsafe_allow_html=True,
         )
         st.markdown('<hr class="vault-divider">', unsafe_allow_html=True)
@@ -265,31 +333,28 @@ def render_vault_sidebar(current_role: str = "Engineering") -> dict[str, Any] | 
                     tags_html += '</div>'
                     st.markdown(tags_html, unsafe_allow_html=True)
 
-        # ── Other departments (collapsed summary) ────────────────
+        # ── Other departments — compact counts row ─────────────────
         other_depts = [d for d in ["Engineering", "Product", "Management"] if d != current_role]
         other_counts = {d: len(groups.get(d, [])) for d in other_depts if groups.get(d)}
 
         if other_counts:
             st.markdown('<hr class="vault-divider">', unsafe_allow_html=True)
-            st.markdown(
-                '<div style="font-size:0.58rem; color:#6b7394; letter-spacing:1px; '
-                'text-transform:uppercase; margin-bottom:0.4rem;">Other Lenses</div>',
-                unsafe_allow_html=True,
-            )
+            counts_html = '<div style="text-align:center; font-size:0.55rem; color:#4a5068; letter-spacing:1px;">'
+            parts = []
             for dept, count in other_counts.items():
                 dept_icon = _DEPT_ICONS.get(dept, "📁")
-                st.markdown(
-                    f'<div style="font-size:0.62rem; color:#4a5068; padding:0.2rem 0;">'
-                    f'{dept_icon} {dept} — {count} '
-                    f'{"meeting" if count == 1 else "meetings"}</div>',
-                    unsafe_allow_html=True,
-                )
+                parts.append(f'{dept_icon} {dept}: {count}')
+            counts_html += ' &nbsp;·&nbsp; '.join(parts)
+            counts_html += '</div>'
+            st.markdown(counts_html, unsafe_allow_html=True)
 
         # ── Clear History ──────────────────────────────────────────
         st.markdown("---")
+        st.markdown('<div class="vault-clear-wrap">', unsafe_allow_html=True)
         if st.button("🗑️  Clear History", key="vault_clear"):
             count = clear_vault()
             st.toast(f"Cleared {count} meeting(s) from vault", icon="🗑️")
             st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
 
     return selected_record

@@ -101,7 +101,7 @@ class AudioProcessor:
         Returns the path to a temporary .wav file.
         """
         try:
-            from moviepy.editor import VideoFileClip
+            from moviepy import VideoFileClip
         except ImportError:
             raise RuntimeError(
                 "moviepy is required for video processing. "
@@ -118,7 +118,7 @@ class AudioProcessor:
                 fps=16000,       # Whisper expects 16 kHz
                 nbytes=2,        # 16-bit
                 codec="pcm_s16le",
-                logger=None,     # suppress moviepy tqdm bars
+                logger=None,     # suppress moviepy progress bars
             )
             clip.close()
         except Exception as exc:
